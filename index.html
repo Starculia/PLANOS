@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PLANOS | Task Planner</title>
+    <link href="data:image/x-icon;base64,AAABAAEAEBAAAAAAAABoBQAAFgAAACgAAAAQAAAAIAAAAAEACAAAAAAAAAEAAAAAAAAAAAAAAAEAAAAAAAAAAAAARkZGACQkJADr6+sAAgICAAsLCwA/Pz8AFBQUAHNzcwBRUVEAJiYmAAQEBAD///8AxMTEAENDQwB3d3cAGBgYAFVVVQA8PDwAERERAE5OTgABAQEANTU1AHt7ewAlJSUAhISEAAMDAwBra2sAysrKAH19fQBSUlIAJycnAO7u7gCPj48AMDAwAAUFBQD39/cAoaGhACAgIADe3t4AiIiIAAcHBwBvb28AEBAQAERERACjo6MAGRkZANfX1wAiIiIAKysrAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFQAAAAAAAAAAAAAAAAAAACwAEjEeGyoHGAAAAAAAFQAAIQwMAAwMDBcAAAAAAAAAAAwMDAMcAg4ZAAAAAAAAJQ0MDAgWAAUfFQAAAAAAAAABDwwRACEVABMeHhoAAAAAChUMLgwUFSMAAAAAAAAABBANDCkMKAsrJgAAAAAwAAAJDAwnByItIAAAAAAAAAAAAAAMDAwMJC8GAAAAAAAAAAAVHQAAAAAVABUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" rel="icon" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Animated Background -->
+    <div id="animated-background"></div>
+    
+    <!-- Greeting Overlay -->
+    <div id="greeting-overlay">
+        <h1 id="greeting-text">Greetings, User</h1>
+    </div>
+
+    <!-- Header -->
+    <header>
+        <h1>PLANOS</h1>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
+            <button class="tab-btn active" onclick="switchTab('create')"><span class="material-symbols-outlined">assignment</span> Create Task</button>
+            <button class="tab-btn" onclick="switchTab('ongoing')"><span class="material-symbols-outlined">avg_pace</span>Ongoing Task</button>
+            <button class="tab-btn" onclick="switchTab('finished')"><span class="material-symbols-outlined">assignment_turned_in</span>Finished Task</button>
+        </div>
+
+        <!-- Tab Contents -->
+        <div id="create-task" class="tab-content active">
+            <h2>Create New Task</h2>
+            <div class="form-group">
+                <input type="text" id="task-title" placeholder="Task Title" required>
+            </div>
+            <div class="form-group">
+                <textarea id="task-description" rows="3" placeholder="Task Description"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="task-hours" style="color: rgba(50, 133, 217, 1); margin-right: 10px; font-size: 0.7rem;">Hours:</label>
+                <input type="number" id="task-hours" min="0" max="23" value="0" style="max-width: 100px;">
+                <label for="task-minutes" style="color: rgba(50, 133, 217, 1); margin-right: 10px; margin-left: 20px; font-size: 0.7rem;">Minutes:</label>
+                <input type="number" id="task-minutes" min="0" max="59" value="0" style="max-width: 100px;">
+            </div>
+            <div class="form-group">
+                <button onclick="createTask()">Create Task</button>
+            </div>
+        </div>
+
+        <div id="ongoing-task" class="tab-content">
+            <h3>Ongoing Task</h3>
+            <ul class="task-list" id="ongoing-tasks">
+                <li class="empty-state">No ongoing task yet</li>
+            </ul>
+        </div>
+
+        <div id="finished-task" class="tab-content">
+            <h3>Finished Task</h3>
+            <ul class="task-list" id="finished-tasks">
+                <li class="empty-state">No finished task yet</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Custom Audio Player -->
+    <div id="audio-player-container">
+        <h4>🎵 Music Player</h4>
+        <audio id="audio-player">
+            <source src="Feels Like Yesterday.mp3" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
+        <div class="player-controls">
+            <button id="play-pause-btn" onclick="togglePlayPause()">⏸</button>
+            <div class="progress-bar">
+                <div id="progress" class="progress"></div>
+            </div>
+        </div>
+        <div class="time-info">
+            <span id="current-time">0:00</span> / <span id="total-time">0:00</span>
+        </div>
+    </div>
+
+    <!-- Notification Modal -->
+    <div id="notification-modal" class="notification-modal">
+        <div class="notification-content">
+            <h2>⏰ Timer Finished!</h2>
+            <p id="notification-text"></p>
+            <button onclick="closeNotification()">OK</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
