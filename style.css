@@ -6,9 +6,12 @@
 
 body {
     font-family: 'Press Start 2P', cursive;
-    background: rgba(18, 59, 99, 1);
+    background: linear-gradient(315deg, rgba(101,0,94,1) 3%, rgb(194, 0, 181, 1) 38%, rgba(60,132,206,1) 68%, rgba(48,238,226,1) 98%); 
+    animation: gradient 15s ease infinite;
+    background-size: 400% 400%;
+    background-attachment: fixed;
     min-height: 100vh;
-    color: rgba(50, 133, 217, 1);
+    color: rgb(254, 230, 255);
     overflow-x: hidden;
     position: relative;
 }
@@ -25,30 +28,66 @@ body {
     overflow: hidden;
 }
 
-.shape {
-    position: absolute;
-    opacity: 0.6;
-    animation: float 20s infinite ease-in-out;
+@keyframes gradient {
+    0% {
+        background-position: 0% 0%;
+    }
+    50% {
+        background-position: 100% 100%;
+    }
+    100% {
+        background-position: 0% 0%;
+    }
 }
 
-.circle {
-    border-radius: 50%;
-    background: rgba(50, 133, 217, 0.3);
-    border: 2px solid rgba(50, 133, 217, 0.5);
+.wave {
+    background: rgb(255 255 255 / 25%);
+    border-radius: 1000% 1000% 0 0;
+    position: fixed;
+    width: 200%;
+    height: 12em;
+    animation: wave 10s -3s linear infinite;
+    transform: translate3d(0, 0, 0);
+    opacity: 0.8;
+    bottom: 0;
+    left: 0;
+    z-index: -1;
 }
 
-.square {
-    background: rgba(50, 133, 217, 0.3);
-    border: 2px solid rgba(50, 133, 217, 0.5);
+.wave:nth-of-type(2) {
+    bottom: -1.25em;
+    animation: wave 18s linear reverse infinite;
+    opacity: 0.8;
 }
 
-.triangle {
-    width: 0;
-    height: 0;
-    border-left: 20px solid transparent;
-    border-right: 20px solid transparent;
-    border-bottom: 35px solid rgba(50, 133, 217, 0.5);
+.wave:nth-of-type(3) {
+    bottom: -2.5em;
+    animation: wave 20s -1s reverse infinite;
+    opacity: 0.9;
 }
+
+@keyframes wave {
+    2% {
+        transform: translateX(1);
+    }
+
+    25% {
+        transform: translateX(-25%);
+    }
+
+    50% {
+        transform: translateX(-50%);
+    }
+
+    75% {
+        transform: translateX(-25%);
+    }
+
+    100% {
+        transform: translateX(1);
+    }
+}
+
 
 @keyframes float {
     0%, 100% {
@@ -103,7 +142,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background: linear-gradient(45deg, rgba(25, 82, 138, 1), rgba(18, 59, 99, 1), rgba(25, 82, 138, 1));
+    background: linear-gradient(45deg, rgba(101, 0, 94, 1), rgb(194, 0, 181, 1), rgb(60,132,206, 1)); 
     background-size: 200% 200%;
     display: flex;
     align-items: center;
@@ -126,7 +165,7 @@ body {
 
 #greeting-text {
     font-size: 4rem;
-    color: rgba(117, 173, 230, 1);
+    color: rgba(254, 230, 255, 1);
     text-shadow: 3px 3px 10px rgba(0, 0, 0, 0.3);
     animation: slideIn 0.8s ease-out, glowEffect 3s ease-in-out 0.9s infinite;
 }
@@ -146,16 +185,16 @@ body {
     0%, 100% {
         text-shadow: 
             3px 3px 10px rgba(0, 0, 0, 0.3),
-            0 0 10px rgba(50, 133, 217, 0.5),
-            0 0 20px rgba(50, 133, 217, 0.5),
-            0 0 30px rgba(50, 133, 217, 0.5);
+            0 0 10px rgba(228, 242, 174, 0.5),
+            0 0 20px rgba(228, 242, 174, 0.5),
+            0 0 30px rgba(228, 242, 174, 0.5);
     }
     50% {
         text-shadow: 
             3px 3px 10px rgba(0, 0, 0, 0.3),
-            0 0 20px rgba(50, 133, 217, 0.8),
-            0 0 40px rgba(50, 133, 217, 0.8),
-            0 0 60px rgba(50, 133, 217, 0.8);
+            0 0 20px rgba(228, 242, 174, 0.8),
+            0 0 40px rgba(228, 242, 174, 0.8),
+            0 0 60px rgba(228, 242, 174, 0.8);
     }
 }
 
@@ -183,7 +222,7 @@ header {
 }
 
 header h1 {
-    color: rgba(50, 133, 217, 1);
+    color: rgba(254, 230, 255, 1);
     font-size: 2.5rem;
     font-weight: bold;
     text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.5);
@@ -198,15 +237,15 @@ header h1 {
     backdrop-filter: blur(10px);
     padding: 20px;
     border-radius: 15px;
-    border: 2px solid rgba(50, 133, 217, 0.3);
+    border: 2px solid rgba(254, 230, 255, 0.3);
 }
 
 .tab-btn {
     flex: 1;
     padding: 15px 20px;
     background: rgba(0, 0, 0, 0.4);
-    color: rgba(50, 133, 217, 1);
-    border: 2px solid rgba(50, 133, 217, 0.5);
+    color: rgba(254, 230, 255, 1);
+    border: 2px solid rgba(254, 230, 255, 0.5);
     border-radius: 10px;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -225,15 +264,15 @@ header h1 {
 }
 
 .tab-btn:hover {
-    background: rgba(50, 133, 217, 0.2);
-    border-color: rgba(50, 133, 217, 0.8);
+    background: rgba(254, 230, 255, 0.2);
+    border-color: rgba(254, 230, 255, 0.8);
     transform: translateY(-2px);
 }
 
 .tab-btn.active {
-    background: rgba(50, 133, 217, 0.4);
-    border-color: rgba(50, 133, 217, 1);
-    box-shadow: 0 5px 15px rgba(50, 133, 217, 0.3);
+    background: rgba(254, 230, 255, 0.4);
+    border-color: rgba(254, 230, 255, 1);
+    box-shadow: 0 5px 15px rgba(254, 230, 255, 0.3);
 }
 
 /* Tab Content */
@@ -244,7 +283,7 @@ header h1 {
     padding: 30px;
     border-radius: 15px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-    border: 2px solid rgba(50, 133, 217, 0.3);
+    border: 2px solid rgba(254, 230, 255, 0.3);
     animation: fadeInTab 0.5s ease-in-out;
 }
 
@@ -265,7 +304,7 @@ header h1 {
 
 /* Create Task Form */
 #create-task h2 {
-    color: rgba(50, 133, 217, 1);
+    color: rgba(254, 230, 255, 1);
     margin-bottom: 20px;
     font-size: 1.8rem;
     text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
@@ -280,29 +319,29 @@ header h1 {
 input, textarea {
     flex: 1;
     padding: 12px 15px;
-    border: 2px solid rgba(50, 133, 217, 0.5);
+    border: 2px solid rgba(254, 230, 255, 0.5);
     border-radius: 8px;
     font-size: 0.8rem;
     transition: all 0.3s ease;
     background: rgba(0, 0, 0, 0.4);
-    color: rgba(50, 133, 217, 1);
+    color: rgba(254, 230, 255, 1);
     font-family: 'Press Start 2P', cursive;
 }
 
 input::placeholder, textarea::placeholder {
-    color: rgba(50, 133, 217, 0.6);
+    color: rgba(254, 230, 255, 0.6);
 }
 
 input:focus, textarea:focus {
     outline: none;
-    border-color: rgba(50, 133, 217, 1);
-    box-shadow: 0 0 0 3px rgba(50, 133, 217, 0.3);
+    border-color: rgba(254, 230, 255, 1);
+    box-shadow: 0 0 0 3px rgba(254, 230, 255, 0.3);
 }
 
 button {
-    background: rgba(50, 133, 217, 0.3);
-    color: rgba(50, 133, 217, 1);
-    border: 2px solid rgba(50, 133, 217, 0.5);
+    background: rgba(254, 230, 255, 0.3);
+    color: rgba(254, 230, 255, 1);
+    border: 2px solid rgba(254, 230, 255, 0.5);
     padding: 12px 30px;
     border-radius: 8px;
     font-size: 0.8rem;
@@ -315,8 +354,8 @@ button {
 
 button:hover {
     transform: translateY(-2px);
-    background: rgba(50, 133, 217, 0.5);
-    box-shadow: 0 5px 15px rgba(50, 133, 217, 0.4);
+    background: rgba(254, 230, 255, 0.5);
+    box-shadow: 0 5px 15px rgba(254, 230, 255, 0.4);
 }
 
 button:active {
@@ -325,10 +364,10 @@ button:active {
 
 /* Task Section */
 .task-section h3 {
-    color: rgba(50, 133, 217, 1);
+    color: rgba(254, 230, 255, 1);
     margin-bottom: 20px;
     font-size: 1.5rem;
-    border-bottom: 3px solid rgba(50, 133, 217, 0.5);
+    border-bottom: 3px solid rgba(254, 230, 255, 0.5);
     padding-bottom: 10px;
     text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
 }
@@ -342,15 +381,15 @@ button:active {
     padding: 15px;
     margin-bottom: 15px;
     border-radius: 10px;
-    border-left: 4px solid rgba(50, 133, 217, 0.5);
+    border-left: 4px solid rgba(254, 230, 255, 0.5);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
     transition: all 0.3s ease;
 }
 
 .task-item:hover {
     transform: translateX(5px);
-    box-shadow: 0 4px 10px rgba(50, 133, 217, 0.3);
-    border-left-color: rgba(50, 133, 217, 1);
+    box-shadow: 0 4px 10px rgba(254, 230, 255, 0.3);
+    border-left-color: rgba(254, 230, 255, 1);
 }
 
 .task-header {
@@ -362,13 +401,13 @@ button:active {
 
 .task-title {
     font-weight: bold;
-    color: rgba(50, 133, 217, 1);
+    color: rgba(254, 230, 255, 1);
     font-size: 1.1rem;
     text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .task-description {
-    color: rgba(50, 133, 217, 0.8);
+    color: rgba(254, 230, 255, 0.8);
     margin-bottom: 10px;
     font-size: 0.7rem;
 }
@@ -380,18 +419,18 @@ button:active {
     gap: 10px;
     margin-bottom: 10px;
     padding: 8px 12px;
-    background: rgba(50, 133, 217, 0.1);
+    background: rgba(254, 230, 255, 0.1);
     border-radius: 5px;
-    border: 1px solid rgba(50, 133, 217, 0.3);
+    border: 1px solid rgba(254, 230, 255, 0.3);
 }
 
 .timer-label {
-    color: rgba(50, 133, 217, 0.9);
+    color: rgba(254, 230, 255, 0.9);
     font-size: 0.7rem;
 }
 
 .timer-display {
-    color: rgba(50, 133, 217, 1);
+    color: rgba(254, 230, 255, 1);
     font-size: 0.7rem;
     font-weight: bold;
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
@@ -413,7 +452,7 @@ button:active {
 .btn-success {
     background: rgba(40, 167, 69, 0.3);
     border-color: rgba(40, 167, 69, 0.5);
-    color: rgba(50, 133, 217, 1);
+    color: rgba(254, 230, 255, 1);
 }
 
 .btn-success:hover {
@@ -423,7 +462,7 @@ button:active {
 .btn-danger {
     background: rgba(220, 53, 69, 0.3);
     border-color: rgba(220, 53, 69, 0.5);
-    color: rgba(50, 133, 217, 1);
+    color: rgba(254, 230, 255, 1);
 }
 
 .btn-danger:hover {
@@ -433,7 +472,7 @@ button:active {
 .btn-secondary {
     background: rgba(108, 117, 125, 0.3);
     border-color: rgba(108, 117, 125, 0.5);
-    color: rgba(50, 133, 217, 1);
+    color: rgba(254, 230, 255, 1);
 }
 
 .btn-secondary:hover {
@@ -452,11 +491,11 @@ button:active {
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     z-index: 1000;
     max-width: 300px;
-    border: 2px solid rgba(50, 133, 217, 0.3);
+    border: 2px solid rgba(254, 230, 255, 0.3);
 }
 
 #audio-player-container h4 {
-    color: rgba(50, 133, 217, 1);
+    color: rgba(254, 230, 255, 1);
     margin-bottom: 10px;
     font-size: 0.8rem;
     text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
@@ -474,9 +513,9 @@ audio {
 }
 
 #play-pause-btn {
-    background: rgba(50, 133, 217, 0.3);
-    border: 2px solid rgba(50, 133, 217, 0.5);
-    color: rgba(50, 133, 217, 1);
+    background: rgba(254, 230, 255, 0.3);
+    border: 2px solid rgba(254, 230, 255, 0.5);
+    color: rgba(254, 230, 255, 1);
     padding: 8px 15px;
     border-radius: 8px;
     cursor: pointer;
@@ -485,13 +524,13 @@ audio {
 }
 
 #play-pause-btn:hover {
-    background: rgba(50, 133, 217, 0.5);
+    background: rgba(254, 230, 255, 0.5);
 }
 
 .progress-bar {
     flex: 1;
     height: 8px;
-    background: rgba(50, 133, 217, 0.2);
+    background: rgba(254, 230, 255, 0.2);
     border-radius: 4px;
     overflow: hidden;
     cursor: pointer;
@@ -499,7 +538,7 @@ audio {
 
 .progress {
     height: 100%;
-    background: rgba(50, 133, 217, 0.8);
+    background: rgba(254, 230, 255, 0.8);
     width: 0%;
     transition: width 0.3s ease;
 }
@@ -508,7 +547,7 @@ audio {
     display: flex;
     justify-content: space-between;
     font-size: 0.6rem;
-    color: rgba(50, 133, 217, 1);
+    color: rgba(254, 230, 255, 1);
 }
 
 /* Notification Modal */
@@ -552,28 +591,28 @@ audio {
     background: rgba(0, 0, 0, 0.9);
     padding: 30px;
     border-radius: 15px;
-    border: 2px solid rgba(50, 133, 217, 1);
+    border: 2px solid rgba(254, 230, 255, 1);
     max-width: 400px;
     text-align: center;
-    box-shadow: 0 10px 40px rgba(50, 133, 217, 0.5);
+    box-shadow: 0 10px 40px rgba(254, 230, 255, 0.5);
 }
 
 .notification-content h2 {
-    color: rgba(50, 133, 217, 1);
+    color: rgba(254, 230, 255, 1);
     margin-bottom: 15px;
     font-size: 1.5rem;
 }
 
 .notification-content p {
-    color: rgba(50, 133, 217, 0.8);
+    color: rgba(254, 230, 255, 0.8);
     margin-bottom: 20px;
     font-size: 1rem;
 }
 
 .notification-content button {
-    background: rgba(50, 133, 217, 0.3);
-    border: 2px solid rgba(50, 133, 217, 0.5);
-    color: rgba(50, 133, 217, 1);
+    background: rgba(254, 230, 255, 0.3);
+    border: 2px solid rgba(254, 230, 255, 0.5);
+    color: rgba(254, 230, 255, 1);
     padding: 10px 30px;
     border-radius: 8px;
     cursor: pointer;
@@ -582,14 +621,14 @@ audio {
 }
 
 .notification-content button:hover {
-    background: rgba(50, 133, 217, 0.5);
+    background: rgba(254, 230, 255, 0.5);
     transform: translateY(-2px);
 }
 
 /* Empty State */
 .empty-state {
     text-align: center;
-    color: rgba(50, 133, 217, 0.6);
+    color: rgba(254, 230, 255, 0.6);
     padding: 40px 20px;
     font-style: italic;
     font-size: 0.7rem;
@@ -610,5 +649,54 @@ audio {
     
     .tab-navigation {
         flex-direction: column;
+    }
+
+    
+}
+
+.level-container {
+    position: absolute;
+    top: 50%;
+    right: 40px;
+    transform: translateY(-50%);
+    text-align: right;
+    color: rgba(254, 230, 255, 1);
+    font-family: 'Press Start 2P', cursive;
+}
+
+.level-text {
+    font-size: 0.8rem;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+    margin-bottom: 6px;
+}
+
+.level-bar {
+    width: 200px;
+    height: 12px;
+    background: rgba(254, 230, 255, 0.2);
+    border-radius: 6px;
+    overflow: hidden;
+    border: 2px solid rgba(254, 230, 255, 0.4);
+    box-shadow: 0 0 10px rgba(254, 230, 255, 0.2);
+}
+
+.level-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, rgba(254, 230, 255, 0.8), rgba(117, 173, 230, 0.9));
+    width: 0%;
+    transition: width 0.4s ease-in-out;
+    box-shadow: 0 0 15px rgba(254, 230, 255, 0.6);
+}
+
+@media (max-width: 768px) {
+    .level-container {
+        position: static;
+        transform: none;
+        margin-top: 10px;
+        text-align: center;
+    }
+
+    .level-bar {
+        width: 100%;
     }
 }
