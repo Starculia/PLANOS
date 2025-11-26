@@ -31,12 +31,24 @@
     <!-- Header -->
     <header>
         <h1>PLANOS</h1>
-        <div class="level-container">
-    <div class="level-text">Level <span id="level-display">1</span></div>
-        <div class="level-bar">
-         <div class="level-bar-fill" id="level-progress"></div>
+        <!-- GAMER LEVEL UI -->
+        <div class="level-container gamer-ui">
+            <div class="level-row">
+                <div class="level-badge">
+                    <span id="level-display">1</span>
+                </div>
+                
+                <div class="xp-section">
+                    <div class="xp-bar">
+                        <div class="xp-fill" id="level-progress"></div>
+                    </div>
+                    <div class="points-text" id="pointsDisplay">
+                        Points: 0
+                    </div>
+                    <div id="achievement-badges"></div>
+                </div>
+            </div>
         </div>
-    </div>
     </header>
 
     <!-- Main Content -->
@@ -107,6 +119,15 @@
             <h2>⏰ Timer Finished!</h2>
             <p id="notification-text"></p>
             <button onclick="closeNotification()">OK</button>
+        </div>
+    </div>
+
+    <!-- Achievement Modal -->
+    <div id="achievement-modal" class="achievement-modal">
+        <div class="achievement-content">
+            <h2>🏆 Achievement Unlocked!</h2>
+            <p id="achievement-text"></p>
+            <button onclick="closeAchievementModal()">OK</button>
         </div>
     </div>
 
