@@ -126,8 +126,8 @@ body {
 }
 
 .container {
-    max-width: 1400px;
-    margin: 40px auto;
+    max-width: 1200px;
+    margin: 32px auto;
     padding: 0 20px;
     position: relative;
     z-index: 1;
@@ -285,7 +285,7 @@ header h1 {
     display: none;
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(10px);
-    padding: 30px;
+    padding: 24px;
     border-radius: 15px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     border: 2px solid rgba(254, 230, 255, 0.3);
@@ -311,7 +311,7 @@ header h1 {
 #create-task h2 {
     color: rgba(254, 230, 255, 1);
     margin-bottom: 20px;
-    font-size: 1.8rem;
+    font-size: 1.2rem;
     text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
 }
 
@@ -641,7 +641,7 @@ audio {
 
 @media (max-width: 768px) {
     header h1 {
-        font-size: 1.8rem;
+        font-size: 2.5rem;
     }
     
     #greeting-text {
@@ -649,7 +649,7 @@ audio {
     }
 
     #audio-player-container {
-        max-width: 250px;
+        max-width: 150px;
     }
     
     .tab-navigation {
@@ -662,7 +662,7 @@ audio {
     order: 3;
     margin: 5px;
     top: 50%;
-    right: 40px;
+    right: 50px;
     transform: translateY(-50%);
     text-align: right;
     color: rgba(254, 230, 255, 1);
@@ -785,22 +785,24 @@ audio {
 }
 
 @media (max-width: 768px) {
+   header h1 {
+        font-size: 30px;
+        margin: 0;
+    }
     .level-container {
-        position: static;
-        transform: none;
-        margin-top: 10px;
-        text-align: center;
+        transform: scale(0.75)  translateX(40px) translateY(-60px);
+        transform-origin: right center;
     }
 
     .level-bar {
         width: 100%;
     }
 
-    #achievement-badges {
+    #achievement-badge {
         position: none;
-        transform: none;
-        right: 35px;
-        margin-top: 35px;
+        transform: scale(0,75);
+        right: 2300px;
+        margin-top: 20px;
     }
 }
 
