@@ -218,7 +218,7 @@ header {
     gap: 10px;
     background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(10px);
-    padding: 25px 40px;
+    padding: 35px 40px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     position: relative;
     z-index: 1;
@@ -646,6 +646,10 @@ audio {
     
     #greeting-text {
         font-size: 2.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
     }
 
     #audio-player-container {
@@ -661,7 +665,7 @@ audio {
     position: absolute;
     order: 3;
     margin: 5px;
-    top: 50%;
+    top: 40%;
     right: 50px;
     transform: translateY(-50%);
     text-align: right;
@@ -792,6 +796,7 @@ audio {
     .level-container {
         transform: scale(0.75)  translateX(40px) translateY(-60px);
         transform-origin: right center;
+        top: 55%;
     }
 
     .level-bar {

@@ -194,7 +194,7 @@ function tickTimers() {
 
 // --- Task Notification Sound ---
 function playNotificationSound() {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const audioContext = new (window.AudioContext || window.AudioContext)();
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
     
