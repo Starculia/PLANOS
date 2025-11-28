@@ -488,7 +488,7 @@ button:active {
 #audio-player-container {
     position: fixed;
     bottom: 20px;
-    left: 20px;
+    right: 20px;
     background: rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(10px);
     padding: 15px;
@@ -654,6 +654,7 @@ audio {
 
     #audio-player-container {
         max-width: 150px;
+        right: 20px;
     }
     
     .tab-navigation {
