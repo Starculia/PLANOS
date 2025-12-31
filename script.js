@@ -1,4 +1,3 @@
-// script.js — patched for timer debugging + reliability
 
 // --- State ---
 let audio = null;
@@ -7,11 +6,64 @@ let isPlaying = false;
 // persistent data
 let points = parseInt(localStorage.getItem('points')) || 0;
 let achievements = JSON.parse(localStorage.getItem('achievements')) || [
-    { level: 2, name: "Getting Started", unlocked: false }
+    {
+        id: 1,
+        level: 0,
+        name: "Newbie Planner",
+        unlocked: false,
+        description: "Just spawned. Let’s see what you can do."
+    },
+    {
+        id: 2,
+        level: 2,
+        name: "First Step",
+        unlocked: false,
+        description: "Nice. One task down, many more to go."
+    },
+    {
+        id: 3,
+        level: 5,
+        name: "Task Handler",
+        unlocked: false,
+        description: "Okay okay… you’re actually doing the tasks."
+    },
+    {
+        id: 4,
+        level: 10,
+        name: "Consistency Builder",
+        unlocked: false,
+        description: "Not a fluke anymore. This is getting serious."
+    },
+    {
+        id: 5,
+        level: 25,
+        name: "Productivity Mindset",
+        unlocked: false,
+        description: "Planning first, chaos later. Respect."
+    },
+    {
+        id: 6,
+        level: 50,
+        name: "Workflow Architect",
+        unlocked: false,
+        description: "You don’t just plan days. You design them."
+    },
+    {
+        id: 7,
+        level: 100,
+        name: "Execution Master",
+        unlocked: false,
+        description: "Plans made. Plans finished. No excuses."
+    },
+    {
+        id: 8,
+        level: 250,
+        name: "Productivity Legend",
+        unlocked: false,
+        description: "At this point, productivity is your personality."
+    }
 ];
 
-// timer tick handle
-let timerTickInterval = null;
 
 // --- Utility / Init ---
 function getNextTaskId() {
@@ -19,18 +71,20 @@ function getNextTaskId() {
     const maxId = tasks.reduce((m, t) => (typeof t.id === 'number' && t.id > m ? t.id : m), -1);
     return maxId + 1;
 }
+
 function saveTasks(tasks) {
     localStorage.setItem('tasks', JSON.stringify(tasks));
 }
+
 function loadTasks() {
     return JSON.parse(localStorage.getItem('tasks')) || [];
 }
+
 function clampNonNegative(n) {
     if (isNaN(n) || n < 0) return 0;
     return n;
 }
 
-// create missing points node gracefully (if not present)
 function ensurePointsDisplayExists() {
     if (!document.getElementById('pointsDisplay')) {
         const header = document.querySelector('header') || document.body;
@@ -58,7 +112,7 @@ function switchTab(tabName) {
     if (btnIndex !== undefined && buttons[btnIndex]) buttons[btnIndex].classList.add('active');
 }
 
-// --- Animated background (unchanged) ---
+// --- Animated background ---
 function createAnimatedBackground() {
     const background = document.getElementById('animated-background');
     if (!background) return;
@@ -140,13 +194,15 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // ALWAYS start the tick interval (no accidental skip)
     if (timerTickInterval) clearInterval(timerTickInterval);
     timerTickInterval = setInterval(tickTimers, 1000);
     console.log('[PLANOS] tickTimers interval started');
 
-    // immediate tick to update displays now
     tickTimers();
+
+    if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission();
+    }
 });
 
 // --- Timer tick system ---
@@ -155,28 +211,22 @@ function tickTimers() {
         const tasks = loadTasks();
         const now = Date.now();
         let changed = false;
-        // debug: log active tasks with endTime
-        // console.debug('[PLANOS] tickTimers running — tasks count:', tasks.length);
 
         tasks.forEach(task => {
             if (task.status === 'ongoing' && task.endTime) {
                 const end = new Date(task.endTime).getTime();
-                // If end is invalid date, skip
                 if (isNaN(end)) return;
                 if (end <= now) {
-                    // Timer expired -> mark finished and award points
                     console.log(`[PLANOS] Task expired: ${task.title} (id:${task.id})`);
                     task.status = 'finished';
                     task.endTime = null;
                     changed = true;
 
-                    // award points
                     points = parseInt(localStorage.getItem('points')) || 0;
                     points += 100;
                     localStorage.setItem('points', points);
                     updatePointsAndLevel();
                     showNotification(task.title);
-                    checkAchievements();
                 }
             }
         });
@@ -192,7 +242,7 @@ function tickTimers() {
     }
 }
 
-// --- Task Notification Sound ---
+// --- Notifications ---
 function playNotificationSound() {
     const audioContext = new (window.AudioContext || window.AudioContext)();
     const oscillator = audioContext.createOscillator();
@@ -201,8 +251,8 @@ function playNotificationSound() {
     oscillator.connect(gainNode);
     gainNode.connect(audioContext.destination);
     
-    oscillator.frequency.value = 2000; // Frequency in Hz
-    oscillator.type = 'square'; // 'sine', 'square', 'sawtooth', 'triangle'
+    oscillator.frequency.value = 2000;
+    oscillator.type = 'square';
     
     gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
@@ -217,24 +267,11 @@ function showNotification(taskTitle) {
     if (text) text.textContent = `Time's up for "${taskTitle}"!`;
     if (modal) modal.classList.add('show');
 
-    playNotificationSound(); // Play the beep
+    playNotificationSound();
 
-    document.body.style.animation = 'none';
-    void document.body.offsetWidth;
-    document.body.style.animation = 'pulse 0.5s';
-}
-
-function showNotification(taskTitle) {
-    const modal = document.getElementById('notification-modal');
-    const text = document.getElementById('notification-text');
-    if (text) text.textContent = `Time's up for "${taskTitle}"!`;
-    if (modal) modal.classList.add('show');
-
-    // Browser notification with sound
     if ("Notification" in window && Notification.permission === "granted") {
         new Notification("PLANOS - Task Complete!", {
             body: `Time's up for "${taskTitle}"!`,
-            icon: "data:image/x-icon;base64,AAABAAEAEBAAAAAAAABoBQAAFgAAACg...", // Your favicon
             requireInteraction: true
         });
     }
@@ -244,10 +281,119 @@ function showNotification(taskTitle) {
     document.body.style.animation = 'pulse 0.5s';
 }
 
-// Request permission on page load
-if ("Notification" in window && Notification.permission === "default") {
-    Notification.requestPermission();
+function closeNotification() {
+    const modal = document.getElementById('notification-modal');
+    if (modal) modal.classList.remove('show');
+    document.body.style.animation = '';
 }
+
+// --- Achievement System (NO ICONS) ---
+function playAchievementSound() {
+    const audioContext = new (window.AudioContext || window.AudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+    oscillator.frequency.linearRampToValueAtTime(1200, audioContext.currentTime + 0.2);
+    oscillator.type = 'sine';
+    
+    gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.6);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.6);
+}
+
+function showAchievementNotification(name, description) {
+    const modal = document.getElementById('achievement-modal');
+    const text = document.getElementById('achievement-text');
+    
+    if (text) {
+        text.innerHTML = `<strong>${name}</strong><br><small>${description}</small>`;
+    }
+    
+    if (modal) {
+        modal.classList.add('show');
+        setTimeout(() => closeAchievementModal(), 4000);
+    }
+    
+    playAchievementSound();
+}
+
+function closeAchievementModal() {
+    const modal = document.getElementById('achievement-modal');
+    if (modal) modal.classList.remove('show');
+}
+
+function displayAchievements() {
+    const badgeContainer = document.getElementById('achievement-badges');
+    if (!badgeContainer) return;
+
+    badgeContainer.innerHTML = '';
+
+    const level = getLevelFromPoints(points);
+
+    const currentBadge = achievements
+        .filter(a => a.unlocked && a.level <= level) // 🔥 FIX
+        .sort((a, b) => b.level - a.level)[0];
+
+    if (!currentBadge) return;
+
+    const badge = document.createElement('div');
+    badge.className = 'achievement-badge unlocked';
+    badge.title = currentBadge.description;
+    badge.textContent = currentBadge.name;
+
+    badgeContainer.appendChild(badge);
+}
+
+function getLevelFromPoints(points) {
+    let level = 0;
+    let required = 100;
+    let total = 0;
+
+    while (points >= total + required) {
+        total += required;
+        required += 20;
+        level++;
+    }
+
+    return level;
+}
+
+
+function checkAchievements() {
+    achievements = JSON.parse(localStorage.getItem('achievements')) || achievements;
+    let changed = false;
+
+    const points = parseInt(localStorage.getItem('points')) || 0;
+    const currentLevel = getLevelFromPoints(points);
+
+    achievements.forEach(a => {
+        if (!a.unlocked && a.level === currentLevel) {
+
+            //GA ADA POPUP UNTUK LEVEL 0 & 1
+            if (currentLevel >= 1) {
+                showAchievementNotification(a.name, a.description);
+            }
+
+            a.unlocked = true;
+            changed = true;
+        }
+    });
+
+    if (changed) {
+        localStorage.setItem('achievements', JSON.stringify(achievements));
+        displayAchievements();
+    }
+}
+
+
+
+
 
 // --- Task creation & management ---
 function createTask() {
@@ -271,7 +417,6 @@ function createTask() {
 
     const totalMinutes = hours * 60 + minutes;
 
-    // guard: if user input 0 minutes, warn — this looks like "not running" because it's already expired
     if (totalMinutes === 0) {
         if (!confirm('You set the task duration to 0 minutes. Continue?')) {
             return;
@@ -306,7 +451,6 @@ function addTask(title, description, status, durationMinutes = 0) {
     updateTaskDisplay();
 }
 
-// Mark finished explicitly by user (also awards points)
 function markAsFinished(taskId) {
     const tasks = loadTasks();
     const index = tasks.findIndex(t => t.id === taskId);
@@ -316,19 +460,16 @@ function markAsFinished(taskId) {
             tasks[index].endTime = null;
             saveTasks(tasks);
 
-            // award points
             points = parseInt(localStorage.getItem('points')) || 0;
             points += 100;
             localStorage.setItem('points', points);
             updatePointsAndLevel();
-            checkAchievements();
 
             updateTaskDisplay();
         }
     }
 }
 
-// Delete a task
 function deleteTask(taskId) {
     const tasks = loadTasks();
     const filtered = tasks.filter(t => t.id !== taskId);
@@ -383,7 +524,6 @@ function createTaskElement(task) {
     return li;
 }
 
-// update remaining time on all timers
 function updateTimerDisplays() {
     const timers = document.querySelectorAll('.timer-display');
     const now = Date.now();
@@ -415,91 +555,55 @@ function updateTimerDisplays() {
     });
 }
 
-// --- Notifications & achievements ---
-function showNotification(taskTitle) {
-    const modal = document.getElementById('notification-modal');
-    const text = document.getElementById('notification-text');
-    if (text) text.textContent = `Time's up for "${taskTitle}"!`;
-    if (modal) modal.classList.add('show');
-
-    document.body.style.animation = 'none';
-    void document.body.offsetWidth;
-    document.body.style.animation = 'pulse 0.5s';
-}
-
-function closeNotification() {
-    const modal = document.getElementById('notification-modal');
-    if (modal) modal.classList.remove('show');
-    document.body.style.animation = '';
-}
-
-function showAchievementNotification(achievementName) {
-    const modal = document.getElementById('achievement-modal');
-    const text = document.getElementById('achievement-text');
-    if (text) text.textContent = `Achievement Unlocked: ${achievementName}!`;
-    if (modal) {
-        modal.classList.add('show');
-    }
-}
-
-function closeAchievementModal() {
-    const modal = document.getElementById('achievement-modal');
-    if (modal) {
-        modal.classList.remove('show');
-    }
-}
-
-function displayAchievements() {
-    const badgeContainer = document.getElementById('achievement-badges');
-    if (!badgeContainer) return;
-    badgeContainer.innerHTML = '';
-    achievements.filter(a => a.unlocked).forEach(achievement => {
-        const badge = document.createElement('div');
-        badge.className = 'achievement-badge';
-        badge.textContent = achievement.name;
-        badgeContainer.appendChild(badge);
-    });
-}
-
-function checkAchievements() {
-    achievements = JSON.parse(localStorage.getItem('achievements')) || achievements;
-    let changed = false;
-    const currentLevel = Math.floor(points / 100) + 1;
-
-    achievements.forEach(a => {
-        if (!a.unlocked && a.level <= currentLevel) {
-            a.unlocked = true;
-            changed = true;
-            showAchievementNotification(a.name);
-        }
-    });
-
-    if (changed) {
-        localStorage.setItem('achievements', JSON.stringify(achievements));
-        displayAchievements();
-    }
-}
-
 // --- Points & Level UI ---
 function updatePointsAndLevel() {
-    points = parseInt(localStorage.getItem('points')) || points || 0;
+    points = parseInt(localStorage.getItem('points')) || 0;
     ensurePointsDisplayExists();
+
     const pointsDisplay = document.getElementById('pointsDisplay');
     const levelDisplay = document.getElementById('level-display');
+    const levelTitle = document.getElementById('level-title'); // ⬅️ TAMBAH INI
     const progressBar = document.getElementById('level-progress');
 
-    const level = Math.floor(points / 100) + 1;
-    const nextLevelPoints = level * 100;
-    const currentLevelStart = (level - 1) * 100;
-    const progressPercent = ((points - currentLevelStart) / (nextLevelPoints - currentLevelStart)) * 100;
+    let level = 0;
+    let required = 100;
+    let total = 0;
 
-    if (pointsDisplay) pointsDisplay.innerText = `Points: ${points}`;
+    while (points >= total + required) {
+        total += required;
+        required += 20;
+        level++;
+    }
+
+    const currentXP = points - total;
+    const progressPercent = (currentXP / required) * 100;
+
     if (levelDisplay) levelDisplay.textContent = level;
     if (progressBar) progressBar.style.width = `${progressPercent}%`;
+
+    // FORMAT point: 120 / 255
+    if (pointsDisplay) {
+        pointsDisplay.textContent = `Points: ${currentXP} / ${required}`;
+    }
+
+    if (levelTitle) {
+        if (level === 0 || level === 1) {
+            levelTitle.textContent = "Newbie";
+        } else if (level === 2) {
+            levelTitle.textContent = "Getting Started";
+        } else {
+            levelTitle.textContent = `Level ${level}`;
+        }
+    }
 
     localStorage.setItem('points', points);
     checkAchievements();
 }
+
+
+
+
+
 
 // --- Helpers ---
 function escapeHtml(text) {
@@ -508,7 +612,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// --- Audio player behavior ---
+// --- Audio player ---
 function togglePlayPause() {
     if (!audio) {
         audio = document.getElementById('audio-player');
