@@ -58,7 +58,7 @@ let achievements = JSON.parse(localStorage.getItem('achievements')) || [
     {
         id: 8,
         level: 250,
-        name: "Productivity Legend",
+        name: "Performative Boss",
         unlocked: false,
         description: "At this point, productivity is your personality."
     }
@@ -234,31 +234,43 @@ function tickTimers() {
         if (changed) {
             saveTasks(tasks);
             updateTaskDisplay();
-        } else {
-            updateTimerDisplays();
         }
+        // Always update timer displays to ensure countdowns are accurate
+        updateTimerDisplays();
     } catch (err) {
         console.error('[PLANOS] tickTimers error:', err);
     }
 }
 
-// --- Notifications ---
-function playNotificationSound() {
-    const audioContext = new (window.AudioContext || window.AudioContext)();
+// Update timers every second
+setInterval(tickTimers, 1000);
+
+function playNotificationSound(type = 'default') {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
     
     oscillator.connect(gainNode);
     gainNode.connect(audioContext.destination);
     
-    oscillator.frequency.value = 2000;
-    oscillator.type = 'square';
+    // Different sound types
+    const sounds = {
+        'add': { freq: 1000, type: 'sine', duration: 0.5, volume: 0.3 },
+        'complete': { freq: 1500, type: 'sine', duration: 0.3, volume: 0.3 },
+        'error': { freq: 800, type: 'square', duration: 0.2, volume: 0.2 },
+        'alert': { freq: 2000, type: 'sine', duration: 0.1, volume: 0.2 }
+    };
     
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+    const sound = sounds[type] || sounds['default'];
     
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.5);
+    oscillator.frequency.value = sound.freq;
+    oscillator.type = sound.type;
+    
+    gainNode.gain.setValueAtTime(sound.volume, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + sound.duration);
+    
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + sound.duration);
 }
 
 function showNotification(taskTitle) {
@@ -267,19 +279,34 @@ function showNotification(taskTitle) {
     if (text) text.textContent = `Time's up for "${taskTitle}"!`;
     if (modal) modal.classList.add('show');
 
-    playNotificationSound();
-
-    if ("Notification" in window && Notification.permission === "granted") {
-        new Notification("PLANOS - Task Complete!", {
-            body: `Time's up for "${taskTitle}"!`,
-            requireInteraction: true
-        });
-    }
+    playNotificationSound(); // Play the beep
 
     document.body.style.animation = 'none';
     void document.body.offsetWidth;
     document.body.style.animation = 'pulse 0.5s';
 }
+
+function showNotification(taskTitle) {
+    const modal = document.getElementById('notification-modal');
+    const text = document.getElementById('notification-text');
+    if (text) text.textContent = `Time's up for "${taskTitle}"!`;
+    if (modal) modal.classList.add('show');
+
+    // Browser notification with sound
+    if ("Notification" in window && Notification.permission === "granted") {
+        new Notification("PLANOS - Task Complete!", {
+            body: `Time's up for "${taskTitle}"!`,
+            icon: "data:image/x-icon;base64,AAABAAEAEBAAAAAAAABoBQAAFgAAACg...", // Your favicon
+            requireInteraction: true
+        });
+    }
+
+    // Body animation
+    document.body.style.animation = 'none';
+    void document.body.offsetWidth;
+    document.body.style.animation = 'pulse 0.5s';
+}
+
 
 function closeNotification() {
     const modal = document.getElementById('notification-modal');
@@ -375,7 +402,7 @@ function checkAchievements() {
     achievements.forEach(a => {
         if (!a.unlocked && a.level === currentLevel) {
 
-            //GA ADA POPUP UNTUK LEVEL 0 & 1
+            //Pop-Ups for level 0 & 1
             if (currentLevel >= 1) {
                 showAchievementNotification(a.name, a.description);
             }
@@ -448,6 +475,7 @@ function addTask(title, description, status, durationMinutes = 0) {
     tasks.push(newTask);
     saveTasks(tasks);
     console.log('[PLANOS] added task:', newTask);
+    playNotificationSound('add');  // Add this line to play the sound
     updateTaskDisplay();
 }
 
@@ -461,10 +489,11 @@ function markAsFinished(taskId) {
             saveTasks(tasks);
 
             points = parseInt(localStorage.getItem('points')) || 0;
-            points += 100;
+            points += 50;
             localStorage.setItem('points', points);
             updatePointsAndLevel();
-
+            
+            playNotificationSound('complete');  // Add this line to play the sound
             updateTaskDisplay();
         }
     }
