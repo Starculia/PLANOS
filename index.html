@@ -97,20 +97,27 @@
     <!-- Custom Audio Player -->
     <div id="audio-player-container">
         <h4>🎵 Music Player</h4>
-        <audio id="audio-player" controls>
-            <source src="Feels Like Yesterday.mp3" type="audio/mpeg" autoplay>
-            Your browser does not support the audio element.
-        </audio>
+
+        <div id="music-title">music</div>
+
+        <audio id="audio-player"></audio>
         <div class="player-controls">
-            <button id="play-pause-btn" onclick="togglePlayPause()">⏸</button>
-            <div class="progress-bar">
-                <div id="progress" class="progress"></div>
+            <div class="control-buttons">
+                <button class="icon-btn" onclick="prevTrack()">⏮</button>
+                <button id="play-pause-btn" onclick="togglePlayPause()">⏸</button>
+                <button class="icon-btn" onclick="nextTrack()">⏭</button>
             </div>
         </div>
+
+        <div class="progress-bar">
+            <div id="progress" class="progress"></div>
+        </div>
+        
+
         <div class="time-info">
             <span id="current-time">0:00</span> / <span id="total-time">0:00</span>
         </div>
-            </div>
+    </div>
 
     <!-- Notification Modal -->
     <div id="notification-modal" class="notification-modal">

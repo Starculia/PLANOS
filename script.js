@@ -3,6 +3,26 @@
 let audio = null;
 let isPlaying = false;
 
+// --- Playlist ---
+const playlist = [
+    { title: "Feels Like Yesterday", src: "audios/Feels Like Yesterday.mp3" },
+    { title: "Deep Focus", src: "audios/Fret Fade.mp3" },
+    { title: "Night Work", src: " //coming soon" }
+];
+
+let currentTrackIndex = 0;
+
+function loadTrack(index) {
+    if (!audio) return;
+
+    audio.src = playlist[index].src;
+    audio.load();
+
+    const titleEl = document.getElementById('music-title');
+    if (titleEl) titleEl.textContent = playlist[index].title;
+}
+
+
 // persistent data
 let points = parseInt(localStorage.getItem('points')) || 0;
 let achievements = JSON.parse(localStorage.getItem('achievements')) || [
@@ -11,21 +31,20 @@ let achievements = JSON.parse(localStorage.getItem('achievements')) || [
         level: 0,
         name: "Newbie Planner",
         unlocked: false,
-        description: "Just spawned. Let’s see what you can do."
     },
     {
         id: 2,
         level: 2,
         name: "First Step",
         unlocked: false,
-        description: "Nice. One task down, many more to go."
+        description: "Okay okay… you’re actually doing the tasks."
     },
     {
         id: 3,
         level: 5,
         name: "Task Handler",
         unlocked: false,
-        description: "Okay okay… you’re actually doing the tasks."
+        description: "Wow, tasks don’t even scare you anymore."
     },
     {
         id: 4,
@@ -60,7 +79,7 @@ let achievements = JSON.parse(localStorage.getItem('achievements')) || [
         level: 250,
         name: "Productivity Legend",
         unlocked: false,
-        description: "At this point, productivity is your personality."
+        description: "At this point, productivity is your personality. No debate"
     }
 ];
 
@@ -169,6 +188,7 @@ document.addEventListener('DOMContentLoaded', function () {
     audio = document.getElementById('audio-player');
     if (audio) {
         setupAudioPlayer();
+        loadTrack(currentTrackIndex);
         const progressBar = document.querySelector('.progress-bar');
         if (progressBar) {
             progressBar.addEventListener('click', function (e) {
@@ -618,19 +638,37 @@ function togglePlayPause() {
         audio = document.getElementById('audio-player');
         if (!audio) return;
         setupAudioPlayer();
+        loadTrack(currentTrackIndex);
     }
-    if (isPlaying) {
-        audio.pause();
-        isPlaying = false;
-        const btn = document.getElementById('play-pause-btn');
-        if (btn) btn.textContent = '▶';
-    } else {
+
+    if (audio.paused) {
         audio.play().catch(() => {});
         isPlaying = true;
-        const btn = document.getElementById('play-pause-btn');
-        if (btn) btn.textContent = '⏸';
+        document.getElementById('play-pause-btn').textContent = '⏸';
+    } else {
+        audio.pause();
+        isPlaying = false;
+        document.getElementById('play-pause-btn').textContent = '▶';
     }
 }
+
+function nextTrack() {
+    currentTrackIndex = (currentTrackIndex + 1) % playlist.length;
+    loadTrack(currentTrackIndex);
+    audio.play();
+    isPlaying = true;
+    document.getElementById('play-pause-btn').textContent = '⏸';
+}
+
+function prevTrack() {
+    currentTrackIndex =
+        (currentTrackIndex - 1 + playlist.length) % playlist.length;
+    loadTrack(currentTrackIndex);
+    audio.play();
+    isPlaying = true;
+    document.getElementById('play-pause-btn').textContent = '⏸';
+}
+
 
 function setupAudioPlayer() {
     if (!audio) return;
