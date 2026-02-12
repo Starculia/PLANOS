@@ -20,6 +20,10 @@ function loadTrack(index) {
 
     const titleEl = document.getElementById('music-title');
     if (titleEl) titleEl.textContent = playlist[index].title;
+    
+    // Update dropdown to reflect current track
+    const trackSelector = document.getElementById('track-selector');
+    if (trackSelector) trackSelector.value = index;
 }
 
 
@@ -174,56 +178,6 @@ function createAnimatedBackground() {
         background.appendChild(triangle);
     }
 }
-
-// --- DOMContentLoaded init ---
-document.addEventListener('DOMContentLoaded', function () {
-    console.log('[PLANOS] DOMContentLoaded — init starting');
-
-    createAnimatedBackground();
-    ensurePointsDisplayExists();
-    updatePointsAndLevel();
-    displayAchievements();
-    updateTaskDisplay();
-
-    audio = document.getElementById('audio-player');
-    if (audio) {
-        setupAudioPlayer();
-        loadTrack(currentTrackIndex);
-        const progressBar = document.querySelector('.progress-bar');
-        if (progressBar) {
-            progressBar.addEventListener('click', function (e) {
-                const width = this.offsetWidth;
-                const clickX = e.offsetX;
-                const duration = audio.duration || 0;
-                if (duration > 0) audio.currentTime = (clickX / width) * duration;
-            });
-        }
-    }
-
-    const titleEl = document.getElementById('task-title');
-    if (titleEl) {
-        titleEl.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') createTask();
-        });
-    }
-
-    const descEl = document.getElementById('task-description');
-    if (descEl) {
-        descEl.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter' && e.ctrlKey) createTask();
-        });
-    }
-
-    if (timerTickInterval) clearInterval(timerTickInterval);
-    timerTickInterval = setInterval(tickTimers, 1000);
-    console.log('[PLANOS] tickTimers interval started');
-
-    tickTimers();
-
-    if ("Notification" in window && Notification.permission === "default") {
-        Notification.requestPermission();
-    }
-});
 
 // --- Timer tick system ---
 function tickTimers() {
@@ -681,21 +635,98 @@ function togglePlayPause() {
     }
 }
 
+function selectTrack(index) {
+    currentTrackIndex = parseInt(index);
+    loadTrack(currentTrackIndex);
+    if (isPlaying) {
+        audio.play();
+    }
+}
+
+function toggleAudioPlayer() {
+    const container = document.getElementById('audio-player-container');
+    if (container.classList.contains('minimized')) {
+        container.classList.remove('minimized');
+    } else {
+        container.classList.add('minimized');
+    }
+}
+
+// Handle click on minimized container to restore
+document.addEventListener('DOMContentLoaded', function () {
+    console.log('[PLANOS] DOMContentLoaded — init starting');
+
+    createAnimatedBackground();
+    ensurePointsDisplayExists();
+    updatePointsAndLevel();
+    displayAchievements();
+    updateTaskDisplay();
+
+    audio = document.getElementById('audio-player');
+    if (audio) {
+        setupAudioPlayer();
+        loadTrack(currentTrackIndex);
+        const progressBar = document.querySelector('.progress-bar');
+        if (progressBar) {
+            progressBar.addEventListener('click', function (e) {
+                const width = this.offsetWidth;
+                const clickX = e.offsetX;
+                const duration = audio.duration || 0;
+                if (duration > 0) audio.currentTime = (clickX / width) * duration;
+            });
+        }
+    }
+
+    // Add click handler for minimized audio player
+    const audioContainer = document.getElementById('audio-player-container');
+    if (audioContainer) {
+        audioContainer.addEventListener('click', function(e) {
+            if (this.classList.contains('minimized') && !e.target.closest('.minimize-btn')) {
+                this.classList.remove('minimized');
+            }
+        });
+    }
+
+    const titleEl = document.getElementById('task-title');
+    if (titleEl) {
+        titleEl.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') createTask();
+        });
+    }
+
+    const descEl = document.getElementById('task-description');
+    if (descEl) {
+        descEl.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter' && e.ctrlKey) createTask();
+        });
+    }
+
+    if (timerTickInterval) clearInterval(timerTickInterval);
+    timerTickInterval = setInterval(tickTimers, 1000);
+    console.log('[PLANOS] tickTimers interval started');
+
+    tickTimers();
+
+    if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission();
+    }
+});
+
 function nextTrack() {
     currentTrackIndex = (currentTrackIndex + 1) % playlist.length;
     loadTrack(currentTrackIndex);
-    audio.play();
-    isPlaying = true;
-    document.getElementById('play-pause-btn').textContent = '⏸';
+    if (isPlaying) {
+        audio.play();
+    }
 }
 
 function prevTrack() {
     currentTrackIndex =
         (currentTrackIndex - 1 + playlist.length) % playlist.length;
     loadTrack(currentTrackIndex);
-    audio.play();
-    isPlaying = true;
-    document.getElementById('play-pause-btn').textContent = '⏸';
+    if (isPlaying) {
+        audio.play();
+    }
 }
 
 

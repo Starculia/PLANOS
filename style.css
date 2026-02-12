@@ -505,7 +505,7 @@ button:active {
     border-radius: 15px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     z-index: 1000;
-    max-width: 300px;
+    max-width: 400px;
     border: 2px solid rgba(254, 230, 255, 0.3);
 }
 
@@ -514,6 +514,68 @@ button:active {
     margin-bottom: 10px;
     font-size: 0.8rem;
     text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.audio-player-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.minimize-btn {
+    background: none;
+    border: none;
+    color: rgba(254, 230, 255, 0.8);
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 3px;
+    transition: background 0.2s ease, color 0.2s ease;
+    font-weight: bold;
+}
+
+.minimize-btn:hover {
+    background: rgba(254, 230, 255, 0.2);
+    color: rgba(254, 230, 255, 1);
+}
+
+.audio-player-content {
+    transition: opacity 0.3s ease, max-height 0.3s ease;
+    opacity: 1;
+    max-height: 200px;
+    overflow: hidden;
+}
+
+#audio-player-container.minimized .audio-player-header {
+    margin-bottom: 0;
+}
+
+#audio-player-container.minimized .audio-player-content {
+    opacity: 0;
+    max-height: 0;
+    margin: 0;
+    padding: 0;
+}
+
+#audio-player-container.minimized {
+    max-width: 200px;
+    padding: 10px;
+    cursor: pointer;
+}
+
+#audio-player-container.minimized h4 {
+    margin-bottom: 0;
+    font-size: 0.7rem;
+}
+
+#audio-player-container.minimized .minimize-btn {
+    display: none;
+}
+
+#audio-player-container.minimized:hover {
+    background: rgba(0, 0, 0, 0.8);
+    border-color: rgba(254, 230, 255, 0.5);
 }
 
 audio {
@@ -532,8 +594,9 @@ audio {
     background: none;
     border: none;
     color: rgba(254, 230, 255, 0.85);
-    font-size: 1 rem;
+    font-size: 1.5rem;
     cursor: pointer;
+    padding: 5px 10px;
     transition: transform 0.2s ease, color 0.2s ease;
 }
 
@@ -547,6 +610,36 @@ audio {
     align-items: center;
     justify-content: center;
     gap: 10px;
+}
+
+#track-selector {
+    background: rgba(254, 230, 255, 0.1);
+    border: 1px solid rgba(254, 230, 255, 0.3);
+    color: rgba(254, 230, 255, 1);
+    padding: 5px 10px;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.6rem;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+    margin-right: 10px;
+}
+
+#track-selector:hover {
+    background: rgba(254, 230, 255, 0.2);
+    border-color: rgba(254, 230, 255, 0.5);
+}
+
+#track-selector:focus {
+    outline: none;
+    border-color: rgba(254, 230, 255, 0.7);
+    background: rgba(254, 230, 255, 0.15);
+}
+
+#track-selector option {
+    background: rgba(101, 0, 94, 0.9);
+    color: rgba(254, 230, 255, 1);
+    padding: 5px;
     margin-bottom: 10px;
 }
 

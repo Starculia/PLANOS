@@ -115,26 +115,34 @@
 
     <!-- Custom Audio Player -->
     <div id="audio-player-container">
-        <h4>🎵 Music Player</h4>
+        <div class="audio-player-header">
+            <h4>🎵 Music Player</h4>
+            <button class="minimize-btn" onclick="toggleAudioPlayer()">−</button>
+        </div>
 
-        <div id="music-title">music</div>
+        <div class="audio-player-content">
+            <div id="music-title">music</div>
 
-        <audio id="audio-player"></audio>
-        <div class="player-controls">
-            <div class="control-buttons">
-                <button class="icon-btn" onclick="prevTrack()">⏮</button>
-                <button id="play-pause-btn" onclick="togglePlayPause()">⏸</button>
-                <button class="icon-btn" onclick="nextTrack()">⏭</button>
+            <audio id="audio-player"></audio>
+            <div class="player-controls">
+                <div class="control-buttons">
+                    <select id="track-selector" onchange="selectTrack(this.value)">
+                        <option value="0">Feels Like Yesterday</option>
+                        <option value="1">Deep Focus</option>
+                        <option value="2">Night Work</option>
+                    </select>
+                    <button id="play-pause-btn" onclick="togglePlayPause()">⏸</button>
+                </div>
             </div>
-        </div>
 
-        <div class="progress-bar">
-            <div id="progress" class="progress"></div>
-        </div>
-        
+            <div class="progress-bar">
+                <div id="progress" class="progress"></div>
+            </div>
+            
 
-        <div class="time-info">
-            <span id="current-time">0:00</span> / <span id="total-time">0:00</span>
+            <div class="time-info">
+                <span id="current-time">0:00</span> / <span id="total-time">0:00</span>
+            </div>
         </div>
     </div>
 
