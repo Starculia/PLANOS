@@ -1,7 +1,359 @@
 
+// PLANOS Main Application Script
+
+// --- Mobile Menu Toggle ---
+function toggleMobileMenu() {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.classList.toggle('open');
+    }
+}
+
+// --- Sidebar Toggle ---
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const mainWrapper = document.querySelector('.main-wrapper');
+    const toggleBtn = document.querySelector('.sidebar-toggle');
+    
+    if (sidebar && mainWrapper) {
+        sidebar.classList.toggle('minimized');
+        mainWrapper.classList.toggle('minimized');
+        
+        // Update toggle button text
+        if (sidebar.classList.contains('minimized')) {
+            toggleBtn.textContent = '▶';
+        } else {
+            toggleBtn.textContent = '◀';
+        }
+    }
+}
+
+// Make functions globally accessible
+window.toggleMobileMenu = toggleMobileMenu;
+window.toggleSidebar = toggleSidebar;
+
+// --- Authentication Dropdown Functions ---
+function toggleAuthDropdown() {
+    const dropdown = document.getElementById('auth-dropdown-menu');
+    if (dropdown) {
+        dropdown.classList.toggle('show');
+    }
+}
+
+function openAuthModal(tab = 'signup') {
+    const modal = document.getElementById('auth-modal');
+    if (modal) {
+        modal.classList.add('show');
+        switchAuthTab(tab);
+    }
+    // Close dropdown
+    const dropdown = document.getElementById('auth-dropdown-menu');
+    if (dropdown) {
+        dropdown.classList.remove('show');
+    }
+}
+
+function closeAuthModal() {
+    const modal = document.getElementById('auth-modal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+}
+
+function switchAuthTab(tab) {
+    const signupTab = document.getElementById('signup-tab');
+    const loginTab = document.getElementById('login-tab');
+    const signupForm = document.getElementById('signup-form');
+    const loginForm = document.getElementById('login-form');
+    const modalTitle = document.getElementById('auth-modal-title');
+    const modalSubtitle = document.getElementById('auth-modal-subtitle');
+    
+    if (tab === 'signup') {
+        signupTab?.classList.add('active');
+        loginTab?.classList.remove('active');
+        signupForm?.classList.add('active');
+        loginForm?.classList.remove('active');
+        if (modalTitle) modalTitle.textContent = 'Sign Up';
+        if (modalSubtitle) modalSubtitle.textContent = 'Create your account';
+    } else {
+        loginTab?.classList.add('active');
+        signupTab?.classList.remove('active');
+        loginForm?.classList.add('active');
+        signupForm?.classList.remove('active');
+        if (modalTitle) modalTitle.textContent = 'Login';
+        if (modalSubtitle) modalSubtitle.textContent = 'Welcome back';
+    }
+}
+
+function updateAuthUI(user) {
+    const authDropdownText = document.getElementById('auth-dropdown-text');
+    const authLoggedOut = document.getElementById('auth-logged-out');
+    const authLoggedIn = document.getElementById('auth-logged-in');
+    const headerUsername = document.getElementById('header-username');
+    
+    if (user) {
+        // User is logged in
+        if (authDropdownText) authDropdownText.textContent = 'Hey, ' + (user.user_metadata?.username || 'User');
+        if (authLoggedOut) authLoggedOut.style.display = 'none';
+        if (authLoggedIn) authLoggedIn.style.display = 'block';
+        if (headerUsername) headerUsername.textContent = user.user_metadata?.username || 'User';
+    } else {
+        // User is logged out
+        if (authDropdownText) authDropdownText.textContent = 'Login';
+        if (authLoggedOut) authLoggedOut.style.display = 'block';
+        if (authLoggedIn) authLoggedIn.style.display = 'none';
+    }
+}
+
+function signOut() {
+    // Close dropdown
+    const dropdown = document.getElementById('auth-dropdown-menu');
+    if (dropdown) {
+        dropdown.classList.remove('show');
+    }
+    
+    // Sign out from Supabase
+    if (window.supabase) {
+        window.supabase.auth.signOut().then(() => {
+            currentUser = null;
+            updateAuthUI(null);
+            showAuthNotification('👋 Logged Out', 'You have been successfully logged out.', 'info');
+        }).catch(error => {
+            console.error('Sign out error:', error);
+        });
+    }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    const dropdown = document.getElementById('auth-dropdown-menu');
+    const dropdownBtn = document.querySelector('.auth-dropdown-btn');
+    
+    if (dropdown && dropdownBtn && !dropdownBtn.contains(event.target) && !dropdown.contains(event.target)) {
+        dropdown.classList.remove('show');
+    }
+});
+
+// --- Authentication Handlers ---
+function handleSignUp(event) {
+    event.preventDefault();
+    
+    const username = document.getElementById('signup-name')?.value?.trim();
+    const email = document.getElementById('signup-email')?.value?.trim();
+    const password = document.getElementById('signup-password')?.value;
+    const confirmPassword = document.getElementById('signup-confirm-password')?.value;
+    
+    console.log('[PLANOS] Sign up attempt:', { 
+        username, 
+        email: email ? email.substring(0, 3) + '***' : 'empty', 
+        hasPassword: !!password,
+        passwordsMatch: password === confirmPassword
+    });
+    
+    if (!username || !email || !password || !confirmPassword) {
+        showAuthMessage('Please fill in all fields', 'error');
+        return;
+    }
+    
+    if (password.length < 6) {
+        showAuthMessage('Password must be at least 6 characters', 'error');
+        return;
+    }
+    
+    if (password !== confirmPassword) {
+        showAuthMessage('Passwords do not match', 'error');
+        return;
+    }
+    
+    if (!window.supabase) {
+        console.error('[PLANOS] Supabase not available during sign up');
+        showAuthMessage('Authentication service not available', 'error');
+        return;
+    }
+    
+    showAuthMessage('Creating account...', 'info');
+    
+    window.supabase.auth.signUp({
+        email,
+        password,
+        options: { 
+            data: { 
+                username: username.toLowerCase().replace(/\s+/g, '_')
+            }
+        }
+    }).then(({ data, error }) => {
+        console.log('[PLANOS] Sign up response:', { data, error });
+        
+        if (error) {
+            console.error('[PLANOS] Sign up error details:', error);
+            throw error;
+        }
+        
+        showAuthMessage('Account created! Please check your email to verify.', 'success');
+        showAuthNotification('📧 Account Created!', 'Please check your email to verify your account before logging in.', 'info');
+        setTimeout(() => {
+            closeAuthModal();
+        }, 2000);
+    }).catch(error => {
+        console.error('[PLANOS] Sign up error:', error);
+        
+        // Handle specific error messages
+        let errorMessage = 'Sign up failed. Please try again.';
+        
+        if (error.message?.includes('User already registered')) {
+            errorMessage = 'This email is already registered. Try logging in instead.';
+        } else if (error.message?.includes('Password should be at least')) {
+            errorMessage = 'Password must be at least 6 characters.';
+        } else if (error.message?.includes('Invalid email')) {
+            errorMessage = 'Please enter a valid email address.';
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+        
+        showAuthMessage(errorMessage, 'error');
+    });
+}
+
+function handleLogin(event) {
+    event.preventDefault();
+    
+    const email = document.getElementById('login-email')?.value?.trim();
+    const password = document.getElementById('login-password')?.value;
+    
+    console.log('[PLANOS] Login attempt:', { email: email ? email.substring(0, 3) + '***' : 'empty', hasPassword: !!password });
+    
+    if (!email || !password) {
+        showAuthMessage('Please fill in all fields', 'error');
+        return;
+    }
+    
+    if (!window.supabase) {
+        console.error('[PLANOS] Supabase not available during login');
+        showAuthMessage('Authentication service not available', 'error');
+        return;
+    }
+    
+    showAuthMessage('Signing in...', 'info');
+    
+    window.supabase.auth.signInWithPassword({
+        email,
+        password
+    }).then(({ data, error }) => {
+        console.log('[PLANOS] Login response:', { data, error });
+        
+        if (error) {
+            console.error('[PLANOS] Login error details:', error);
+            throw error;
+        }
+        
+        if (!data.user) {
+            throw new Error('No user data returned');
+        }
+        
+        currentUser = data.user;
+        console.log('[PLANOS] Login successful for:', currentUser.email);
+        
+        updateAuthUI(currentUser);
+        closeAuthModal();
+        showAuthNotification('🎉 Login Successful!', 'Welcome back, ' + (currentUser.user_metadata?.username || 'User') + '!', 'success');
+    }).catch(error => {
+        console.error('[PLANOS] Login error:', error);
+        
+        // Handle specific error messages
+        let errorMessage = 'Login failed. Please try again.';
+        
+        if (error.message?.includes('Invalid login credentials')) {
+            errorMessage = 'Invalid email or password';
+        } else if (error.message?.includes('Email not confirmed')) {
+            errorMessage = 'Please check your email and confirm your account';
+        } else if (error.message?.includes('User not found')) {
+            errorMessage = 'No account found with this email';
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+        
+        showAuthMessage(errorMessage, 'error');
+    });
+}
+
+function handleGoogleAuth() {
+    if (!window.supabase) {
+        showAuthMessage('Authentication service not available', 'error');
+        return;
+    }
+    
+    showAuthMessage('Connecting to Google...', 'info');
+    
+    window.supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+            redirectTo: window.location.origin
+        }
+    }).catch(error => {
+        console.error('Google auth error:', error);
+        showAuthMessage('Google authentication failed. Please try again.', 'error');
+    });
+}
+
+function showAuthMessage(message, type = 'info') {
+    const messageEl = document.getElementById('auth-message');
+    if (messageEl) {
+        messageEl.textContent = message;
+        messageEl.className = 'auth-message ' + type;
+    }
+}
+
+// --- Authentication State Management ---
+function initializeAuth() {
+    // Wait for Supabase to be available
+    const checkSupabase = () => {
+        if (window.supabase) {
+            console.log('[PLANOS] Initializing authentication...');
+            
+            // Check current auth state
+            window.supabase.auth.getSession().then(({ data: { session } }) => {
+                currentUser = session?.user || null;
+                updateAuthUI(currentUser);
+                console.log('[PLANOS] Auth state initialized:', currentUser ? 'Logged in' : 'Logged out');
+            });
+            
+            // Listen for auth changes
+            window.supabase.auth.onAuthStateChange((event, session) => {
+                const previousUser = currentUser;
+                currentUser = session?.user || null;
+                updateAuthUI(currentUser);
+                
+                if (event === 'SIGNED_IN' && currentUser && !previousUser) {
+                    showAuthNotification('🎉 Welcome Back!', 'You are now logged in as ' + (currentUser.user_metadata?.username || 'User'), 'success');
+                } else if (event === 'SIGNED_OUT') {
+                    showAuthNotification('👋 Logged Out', 'You have been successfully logged out.', 'info');
+                }
+            });
+        } else {
+            // Retry after a short delay
+            setTimeout(checkSupabase, 100);
+        }
+    };
+    
+    checkSupabase();
+}
+
+// Make functions globally accessible
+window.toggleAuthDropdown = toggleAuthDropdown;
+window.openAuthModal = openAuthModal;
+window.closeAuthModal = closeAuthModal;
+window.switchAuthTab = switchAuthTab;
+window.handleSignUp = handleSignUp;
+window.handleLogin = handleLogin;
+window.handleGoogleAuth = handleGoogleAuth;
+window.signOut = signOut;
+
 // --- State ---
 let audio = null;
 let isPlaying = false;
+let currentTrackIndex = 0;
+let currentUser = null;
+let timerTickInterval = null;
 
 // --- Playlist ---
 const playlist = [
@@ -10,25 +362,18 @@ const playlist = [
     { title: "Night Work", src: " //coming soon" }
 ];
 
-let currentTrackIndex = 0;
-
 function loadTrack(index) {
     if (!audio) return;
 
     audio.src = playlist[index].src;
     audio.load();
-
-    const titleEl = document.getElementById('music-title');
-    if (titleEl) titleEl.textContent = playlist[index].title;
     
     // Update dropdown to reflect current track
     const trackSelector = document.getElementById('track-selector');
     if (trackSelector) trackSelector.value = index;
 }
 
-
 // persistent data
-let points = parseInt(localStorage.getItem('points')) || 0;
 let achievements = JSON.parse(localStorage.getItem('achievements')) || [
     {
         id: 1,
@@ -124,15 +469,20 @@ function ensurePointsDisplayExists() {
 // --- Tab Switching ---
 function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
 
     const tabContent = document.getElementById(tabName + '-task');
     if (tabContent) tabContent.classList.add('active');
 
-    const buttons = document.querySelectorAll('.tab-btn');
-    const tabMap = { 'create': 0, 'ongoing': 1, 'finished': 2 };
+    const buttons = document.querySelectorAll('.nav-btn');
+    const tabMap = { 'create': 0, 'ongoing': 1, 'finished': 2, 'badges': 3 };
     const btnIndex = tabMap[tabName];
     if (btnIndex !== undefined && buttons[btnIndex]) buttons[btnIndex].classList.add('active');
+    
+    // Display badges when switching to badges tab
+    if (tabName === 'badges') {
+        displayAllBadges();
+    }
 }
 
 // --- Animated background ---
@@ -196,9 +546,9 @@ function tickTimers() {
                     task.endTime = null;
                     changed = true;
 
-                    points = parseInt(localStorage.getItem('points')) || 0;
-                    points += 100;
-                    localStorage.setItem('points', points);
+                    const currentPoints = parseInt(localStorage.getItem('points')) || 0;
+                    const newPoints = currentPoints + 100;
+                    localStorage.setItem('points', newPoints);
                     updatePointsAndLevel();
                     showNotification(task.title);
                 }
@@ -220,31 +570,42 @@ function tickTimers() {
 setInterval(tickTimers, 1000);
 
 function playNotificationSound(type = 'default') {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    // Different sound types
-    const sounds = {
-        'add': { freq: 1000, type: 'sine', duration: 0.5, volume: 0.3 },
-        'complete': { freq: 1500, type: 'sine', duration: 0.3, volume: 0.3 },
-        'error': { freq: 800, type: 'square', duration: 0.2, volume: 0.2 },
-        'alert': { freq: 2000, type: 'sine', duration: 0.1, volume: 0.2 }
-    };
-    
-    const sound = sounds[type] || sounds['default'];
-    
-    oscillator.frequency.value = sound.freq;
-    oscillator.type = sound.type;
-    
-    gainNode.gain.setValueAtTime(sound.volume, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + sound.duration);
-    
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + sound.duration);
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Different sound types
+        const sounds = {
+            'default': { freq: 1000, type: 'sine', duration: 0.5, volume: 0.3 },
+            'add': { freq: 1000, type: 'sine', duration: 0.5, volume: 0.3 },
+            'complete': { freq: 1500, type: 'sine', duration: 0.3, volume: 0.3 },
+            'error': { freq: 800, type: 'square', duration: 0.2, volume: 0.2 },
+            'alert': { freq: 2000, type: 'sine', duration: 0.1, volume: 0.2 }
+        };
+        
+        const sound = sounds[type] || sounds['default'];
+        
+        // Check if oscillator and frequency exist
+        if (oscillator && oscillator.frequency) {
+            oscillator.frequency.setValueAtTime(sound.freq, audioContext.currentTime);
+            oscillator.type = sound.type;
+            
+            gainNode.gain.setValueAtTime(sound.volume, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + sound.duration);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + sound.duration);
+        } else {
+            console.warn('[PLANOS] Could not create oscillator for notification sound');
+        }
+    } catch (error) {
+        console.warn('[PLANOS] Error playing notification sound:', error);
+        // Don't throw error - notification sound is not critical
+    }
 }
 
 function showNotification(taskTitle) {
@@ -255,23 +616,12 @@ function showNotification(taskTitle) {
 
     playNotificationSound(); // Play the beep
 
-    document.body.style.animation = 'none';
-    void document.body.offsetWidth;
-    document.body.style.animation = 'pulse 0.5s';
-}
-
-function showNotification(taskTitle) {
-    const modal = document.getElementById('notification-modal');
-    const text = document.getElementById('notification-text');
-    if (text) text.textContent = `Time's up for "${taskTitle}"!`;
-    if (modal) modal.classList.add('show');
-
-    // Browser notification with sound
+    // Browser notification with sound (manual - requires user interaction)
     if ("Notification" in window && Notification.permission === "granted") {
         new Notification("PLANOS - Task Complete!", {
             body: `Time's up for "${taskTitle}"!`,
             icon: "data:image/x-icon;base64,AAABAAEAEBAAAAAAAABoBQAAFgAAACg...", // Your favicon
-            requireInteraction: true
+            requireInteraction: true  // This makes browser notification manual
         });
     }
 
@@ -288,24 +638,97 @@ function closeNotification() {
     document.body.style.animation = '';
 }
 
+// --- Authentication Notification Functions ---
+function showAuthNotification(title, message, type = 'info') {
+    const modal = document.getElementById('auth-notification-modal');
+    const titleEl = document.getElementById('auth-notification-title');
+    const textEl = document.getElementById('auth-notification-text');
+    
+    if (titleEl) titleEl.textContent = title;
+    if (textEl) textEl.textContent = message;
+    if (modal) modal.classList.add('show');
+    
+    // Play authentication sound
+    playAuthNotificationSound(type);
+    
+    // Body animation for auth notifications
+    document.body.style.animation = 'none';
+    void document.body.offsetWidth;
+    document.body.style.animation = 'authPulse 0.5s';
+}
+
+function closeAuthNotification() {
+    const modal = document.getElementById('auth-notification-modal');
+    if (modal) modal.classList.remove('show');
+    document.body.style.animation = '';
+}
+
+function playAuthNotificationSound(type = 'info') {
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Different sounds for different auth events
+        const authSounds = {
+            'success': { freq: 1200, type: 'triangle', duration: 0.4, volume: 0.3 },
+            'error': { freq: 600, type: 'sawtooth', duration: 0.3, volume: 0.2 },
+            'info': { freq: 800, type: 'sine', duration: 0.3, volume: 0.25 },
+            'warning': { freq: 1000, type: 'square', duration: 0.2, volume: 0.2 }
+        };
+        
+        const sound = authSounds[type] || authSounds['info'];
+        
+        // Check if oscillator and frequency exist
+        if (oscillator && oscillator.frequency) {
+            oscillator.frequency.setValueAtTime(sound.freq, audioContext.currentTime);
+            oscillator.type = sound.type;
+            
+            gainNode.gain.setValueAtTime(sound.volume, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + sound.duration);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + sound.duration);
+        } else {
+            console.warn('[PLANOS] Could not create oscillator for auth notification sound');
+        }
+    } catch (error) {
+        console.warn('[PLANOS] Error playing auth notification sound:', error);
+        // Don't throw error - sound is not critical
+    }
+}
+
 // --- Achievement System (NO ICONS) ---
 function playAchievementSound() {
-    const audioContext = new (window.AudioContext || window.AudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-    oscillator.frequency.linearRampToValueAtTime(1200, audioContext.currentTime + 0.2);
-    oscillator.type = 'sine';
-    
-    gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.6);
-    
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.6);
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Check if oscillator and frequency exist
+        if (oscillator && oscillator.frequency) {
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+            oscillator.frequency.linearRampToValueAtTime(1200, audioContext.currentTime + 0.2);
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.6);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.6);
+        } else {
+            console.warn('[PLANOS] Could not create oscillator for achievement sound');
+        }
+    } catch (error) {
+        console.warn('[PLANOS] Error playing achievement sound:', error);
+        // Don't throw error - achievement sound is not critical
+    }
 }
 
 function showAchievementNotification(name, description) {
@@ -318,7 +741,7 @@ function showAchievementNotification(name, description) {
     
     if (modal) {
         modal.classList.add('show');
-        setTimeout(() => closeAchievementModal(), 4000);
+        // Removed auto-close - now manual only
     }
     
     playAchievementSound();
@@ -329,16 +752,69 @@ function closeAchievementModal() {
     if (modal) modal.classList.remove('show');
 }
 
+function displayAllBadges() {
+    const badgesGrid = document.getElementById('badges-grid');
+    if (!badgesGrid) return;
+    badgesGrid.innerHTML = '';
+    
+    const currentPoints = parseInt(localStorage.getItem('points')) || 0;
+    const currentLevel = getLevelFromPoints(currentPoints);
+
+    achievements.forEach((achievement, index) => {
+        const isUnlocked = achievement.unlocked;
+        const progress = isUnlocked ? 100 : calculateProgress(currentLevel, achievement.level);
+        
+        const badgeCard = document.createElement('div');
+        badgeCard.className = `badge-card ${isUnlocked ? 'unlocked' : 'locked'}`;
+        
+        const badgeIcon = getBadgeIcon(achievement.level);
+        const lockStatus = isUnlocked ? '🏆' : '🔒';
+        
+        badgeCard.innerHTML = `
+            <div class="lock-status">${lockStatus}</div>
+            <div class="badge-icon">${badgeIcon}</div>
+            <div class="badge-name">${achievement.name}</div>
+            <div class="badge-description">${achievement.description || 'Complete more tasks to unlock this achievement!'}</div>
+            <div class="badge-level">Level ${achievement.level}</div>
+            ${!isUnlocked ? `
+                <div class="badge-progress">
+                    <div class="badge-progress-fill" style="width: ${progress}%"></div>
+                </div>
+                <div style="font-size: 0.5rem; color: rgba(230, 235, 254, 0.6); margin-top: 5px;">
+                    ${progress.toFixed(1)}% Complete
+                </div>
+            ` : ''}
+        `;
+        
+        badgesGrid.appendChild(badgeCard);
+    });
+}
+
+function getBadgeIcon(level) {
+    const icons = {
+        0: '🌟',
+        2: '🚀', 
+        5: '⚡',
+        10: '🔥',
+        25: '💎',
+        50: '👑',
+        100: '🏆',
+        250: '🌟'
+    };
+    return icons[level] || '🏅';
+}
+
 function displayAchievements() {
     const badgeContainer = document.getElementById('achievement-badges');
     if (!badgeContainer) return;
 
     badgeContainer.innerHTML = '';
 
-    const level = getLevelFromPoints(points);
+    const currentPoints = parseInt(localStorage.getItem('points')) || 0;
+    const currentLevel = getLevelFromPoints(currentPoints);
 
     const currentBadge = achievements
-        .filter(a => a.unlocked && a.level <= level) // 🔥 FIX
+        .filter(a => a.unlocked && a.level <= currentLevel)
         .sort((a, b) => b.level - a.level)[0];
 
     if (!currentBadge) return;
@@ -349,6 +825,12 @@ function displayAchievements() {
     badge.textContent = currentBadge.name;
 
     badgeContainer.appendChild(badge);
+}
+
+function calculateProgress(currentLevel, requiredLevel) {
+    if (currentLevel >= requiredLevel) return 100;
+    if (currentLevel === 0) return 0;
+    return Math.min((currentLevel / requiredLevel) * 100, 99);
 }
 
 function getLevelFromPoints(points) {
@@ -455,21 +937,21 @@ function addTask(title, description, status, durationMinutes = 0) {
 
 function markAsFinished(taskId) {
     const tasks = loadTasks();
-    const index = tasks.findIndex(t => t.id === taskId);
-    if (index !== -1) {
-        if (tasks[index].status !== 'finished') {
-            tasks[index].status = 'finished';
-            tasks[index].endTime = null;
-            saveTasks(tasks);
-
-            points = parseInt(localStorage.getItem('points')) || 0;
-            points += 50;
-            localStorage.setItem('points', points);
-            updatePointsAndLevel();
-            
-            playNotificationSound('complete');  // Add this line to play the sound
-            updateTaskDisplay();
-        }
+    const taskIndex = tasks.findIndex(t => t.id === taskId);
+    
+    if (taskIndex !== -1) {
+        tasks[taskIndex].status = 'finished';
+        tasks[taskIndex].endTime = null;
+        saveTasks(tasks);
+        
+        // Award points
+        const currentPoints = parseInt(localStorage.getItem('points')) || 0;
+        const newPoints = currentPoints + 50;
+        localStorage.setItem('points', newPoints);
+        updatePointsAndLevel();
+        
+        playNotificationSound('complete');
+        updateTaskDisplay();
     }
 }
 
@@ -560,12 +1042,12 @@ function updateTimerDisplays() {
 
 // --- Points & Level UI ---
 function updatePointsAndLevel() {
-    points = parseInt(localStorage.getItem('points')) || 0;
+    const points = parseInt(localStorage.getItem('points')) || 0;
     ensurePointsDisplayExists();
 
     const pointsDisplay = document.getElementById('pointsDisplay');
     const levelDisplay = document.getElementById('level-display');
-    const levelTitle = document.getElementById('level-title'); // ⬅️ TAMBAH INI
+    const levelTitle = document.getElementById('level-title');
     const progressBar = document.getElementById('level-progress');
 
     let level = 0;
@@ -599,14 +1081,8 @@ function updatePointsAndLevel() {
         }
     }
 
-    localStorage.setItem('points', points);
     checkAchievements();
 }
-
-
-
-
-
 
 // --- Helpers ---
 function escapeHtml(text) {
@@ -677,16 +1153,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Add click handler for minimized audio player
-    const audioContainer = document.getElementById('audio-player-container');
-    if (audioContainer) {
-        audioContainer.addEventListener('click', function(e) {
-            if (this.classList.contains('minimized') && !e.target.closest('.minimize-btn')) {
-                this.classList.remove('minimized');
-            }
-        });
-    }
-
     const titleEl = document.getElementById('task-title');
     if (titleEl) {
         titleEl.addEventListener('keypress', function (e) {
@@ -707,16 +1173,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
     tickTimers();
 
+    // Initialize authentication
+    initializeAuth();
+
     if ("Notification" in window && Notification.permission === "default") {
         Notification.requestPermission();
     }
 });
 
-function nextTrack() {
+function nextTrack(autoPlay = false) {
     currentTrackIndex = (currentTrackIndex + 1) % playlist.length;
     loadTrack(currentTrackIndex);
-    if (isPlaying) {
-        audio.play();
+    // Auto-play if requested or if currently playing
+    if (autoPlay || isPlaying) {
+        audio.play().catch(() => {});
+        isPlaying = true;
+        document.getElementById('play-pause-btn').textContent = '⏸';
     }
 }
 
@@ -724,8 +1196,11 @@ function prevTrack() {
     currentTrackIndex =
         (currentTrackIndex - 1 + playlist.length) % playlist.length;
     loadTrack(currentTrackIndex);
+    // Auto-play if currently playing
     if (isPlaying) {
-        audio.play();
+        audio.play().catch(() => {});
+        isPlaying = true;
+        document.getElementById('play-pause-btn').textContent = '⏸';
     }
 }
 
@@ -741,6 +1216,9 @@ function setupAudioPlayer() {
         isPlaying = false;
         const btn = document.getElementById('play-pause-btn');
         if (btn) btn.textContent = '▶';
+        
+        // Automatically play next track when current track ends
+        nextTrack(true);
     });
 }
 
@@ -773,3 +1251,16 @@ function formatTime(seconds) {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
+
+// Export functions
+window.PLANOS = {
+    createTask,
+    markAsFinished,
+    deleteTask,
+    switchTab,
+    togglePlayPause,
+    nextTrack,
+    prevTrack,
+    toggleAudioPlayer,
+    selectTrack
+};

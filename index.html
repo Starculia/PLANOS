@@ -10,119 +10,159 @@
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200">
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.min.js" integrity="sha384-G/EV+4j2dNv+tEPo3++6LCgdCROaejBqfUeNjuKAiuXbjrxilcCdDz6ZAVfHWe1Y" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        let audioUnlocked = false;
-
-        function unlockAudio() {
-            if (audioUnlocked) return;
-            const a = new (window.AudioContext || window.webkitAudioContext)();
-            const buffer = a.createBuffer(1, 1, 22050);
-            const source = a.createBufferSource();
-            source.buffer = buffer;
-            source.connect(a.destination);
-            source.start(0);
-            audioUnlocked = true;
-            console.log("Audio unlocked for PLANOS");
-        }
-
-        document.addEventListener("click", unlockAudio);
-        document.addEventListener("keydown", unlockAudio);
+        // Initialize Supabase
+        const SUPABASE_URL = 'https://fwgjphiegsppfvbpoxwi.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ3Z2pwaGllZ3NwcGZ2YnBveHdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1NjkzNDYsImV4cCI6MjA4NzE0NTM0Nn0.6KpbC7QP9p1uEYndZzf_2cgbeATGUiTxLjjvr8fvY8A';
+        
+        window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('[PLANOS] Supabase initialized successfully');
     </script>
-
 </head>
 <body>
+
     <!-- Animated Background -->
-    <div id="animated-background"></div>
-     
-    <div>
-     <div class="wave"></div>
-     <div class="wave"></div>
-     <div class="wave"></div>
+    <div id="container">
+        <div id="container-inside">
+            <div id="circle-small"></div>
+            <div id="circle-medium"></div>
+            <div id="circle-large"></div>
+            <div id="circle-xlarge"></div>
+            <div id="circle-xxlarge"></div>
+        </div>
     </div>
 
-    <!-- Greeting Overlay -->
-    <div id="greeting-overlay">
-        <h1 id="greeting-text">Greetings, User</h1>
-    </div>
+    
 
-    <!-- Header -->
-    <header>
-        <h1>PLANOS</h1>
-        <!-- GAMER LEVEL UI -->
-        <div class="level-container gamer-ui">
-            <div class="level-row">
-                <div class="level-badge">
-                    <span id="level-display">0</span>
+    <!-- Mobile Menu Toggle -->
+    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()">☰</button>
+
+    <!-- Left Sidebar Navbar -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <button class="sidebar-toggle" onclick="toggleSidebar()">◀</button>
+            <h1 id="sidebar-title">PLANOS</h1>
+        </div>
+        
+        <div class="sidebar-nav">
+            <button class="nav-btn active" onclick="switchTab('create')" title="Create Task">
+                <span class="material-symbols-outlined">assignment</span>
+                <span class="nav-text">Create Task</span>
+            </button>
+            <button class="nav-btn" onclick="switchTab('ongoing')" title="Ongoing Task">
+                <span class="material-symbols-outlined">avg_pace</span>
+                <span class="nav-text">Ongoing Task</span>
+            </button>
+            <button class="nav-btn" onclick="switchTab('finished')" title="Finished Task">
+                <span class="material-symbols-outlined">assignment_turned_in</span>
+                <span class="nav-text">Finished Task</span>
+            </button>
+            <button class="nav-btn" onclick="switchTab('badges')" title="Badges">
+                <span class="material-symbols-outlined">military_tech</span>
+                <span class="nav-text">Badges</span>
+            </div>
+        
+        <!-- Level System at Bottom -->
+        <div class="sidebar-level" id="sidebar-level">
+            <div class="level-container">
+                <div class="level-text">Level <span id="level-display">0</span></div>
+                <div class="level-title" id="level-title">Newbie</div>
+                <div class="level-progress">
+                    <div class="level-progress-fill" id="level-progress" style="width: 0%"></div>
                 </div>
-                <div class="xp-section">
-                    <div class="xp-bar">
-                        <div class="xp-fill" id="level-progress"></div>
-                    </div>
-                    <div class="points-text" id="pointsDisplay">
-                        Points: 0
-                    </div>
-                    <div id="achievement-badges"></div>
+                <div class="points-text" id="pointsDisplay">
+                    Points: 0
                 </div>
+                <div id="achievement-badges"></div>
             </div>
         </div>
-    </header>
-
-    <!-- Main Content -->
-    <div class="container">
-        <!-- Tab Navigation -->
-        <div class="tab-navigation">
-            <button class="tab-btn active" onclick="switchTab('create')"><span class="material-symbols-outlined">assignment</span> Create Task</button>
-            <button class="tab-btn" onclick="switchTab('ongoing')"><span class="material-symbols-outlined">avg_pace</span>Ongoing Task</button>
-            <button class="tab-btn" onclick="switchTab('finished')"><span class="material-symbols-outlined">assignment_turned_in</span>Finished Task</button>
-        </div>
-
-        <!-- Tab Contents -->
-        <div id="create-task" class="tab-content active">
-            <h2>Create New Task</h2>
-            <div class="form-group">
-                <input type="text" id="task-title" placeholder="Task Title" required>
+    </nav>
+    
+    <!-- Main Content Area -->
+    <div class="main-wrapper">
+        <!-- Header -->
+        <header>
+            <div class="header-content">
+                <div class="header-left">
+                    <!-- Empty space where PLANOS was -->
+                </div>
+                <div class="auth-dropdown">
+                    <button class="auth-dropdown-btn" onclick="toggleAuthDropdown()">
+                        <span id="auth-dropdown-text">Login</span>
+                        <span class="material-symbols-outlined">arrow_drop_down</span>
+                    </button>
+                    <div class="auth-dropdown-menu" id="auth-dropdown-menu">
+                        <div id="auth-logged-out" class="auth-menu-section">
+                            <button class="auth-menu-btn" onclick="openAuthModal('signup')">Sign Up</button>
+                            <button class="auth-menu-btn" onclick="openAuthModal('login')">Login</button>
+                        </div>
+                        <div id="auth-logged-in" class="auth-menu-section" style="display: none;">
+                            <div class="user-info-header">
+                                <span class="material-symbols-outlined">account_circle</span>
+                                <span id="header-username">User</span>
+                            </div>
+                            <button class="auth-menu-btn logout-btn" onclick="signOut()">Logout</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        
+        
+                <!-- Main Content -->
+        <div class="container">
+            
+            <!-- Tab Contents -->
+            <div id="create-task" class="tab-content active">
+                <h2>Create New Task</h2>
+                <div class="form-group">
+                    <input type="text" id="task-title" placeholder="Task Title" required>
             </div>
             <div class="form-group">
                 <textarea id="task-description" rows="3" placeholder="Task Description"></textarea>
             </div>
             <div class="form-group">
-                <label for="task-hours" style="color: rgba(254, 230, 255, 1); margin-right: 10px; font-size: 0.7rem;">Hours:</label>
-                <input type="number" id="task-hours" min="0" max="23" value="0" style="max-width: 100px;">
-                <label for="task-minutes" style="color: rgba(254, 230, 255, 1); margin-right: 10px; margin-left: 20px; font-size: 0.7rem;">Minutes:</label>
-                <input type="number" id="task-minutes" min="0" max="59" value="0" style="max-width: 100px;">
+                <label for="task-hours" class="time-label">Hours:</label>
+                <input type="number" id="task-hours" class="time-input" min="0" max="23" value="0">
+                <label for="task-minutes" class="time-label">Minutes:</label>
+                <input type="number" id="task-minutes" class="time-input" min="0" max="59" value="0">
             </div>
             <div class="form-group">
                 <button onclick="createTask()">Create Task</button>
             </div>
         </div>
-
+        
         <div id="ongoing-task" class="tab-content">
             <h3>Ongoing Task</h3>
             <ul class="task-list" id="ongoing-tasks">
                 <li class="empty-state">No ongoing task yet</li>
             </ul>
         </div>
-
+        
         <div id="finished-task" class="tab-content">
             <h3>Finished Task</h3>
             <ul class="task-list" id="finished-tasks">
                 <li class="empty-state">No finished task yet</li>
             </ul>
         </div>
+        
+        <div id="badges-task" class="tab-content">
+            <h3>🏆 Achievement Badges</h3>
+            <div class="badges-grid" id="badges-grid">
+                <!-- Badges will be dynamically inserted here -->
+            </div>
+        </div>
     </div>
-
+    
     <!-- Custom Audio Player -->
     <div id="audio-player-container">
-        <div class="audio-player-header">
-            <h4>🎵 Music Player</h4>
-            <button class="minimize-btn" onclick="toggleAudioPlayer()">−</button>
+        <div class="audio-player-header" onclick="toggleAudioPlayer()">
+            <h4>Music Player</h4>
         </div>
 
         <div class="audio-player-content">
-            <div id="music-title">music</div>
-
             <audio id="audio-player"></audio>
             <div class="player-controls">
                 <div class="control-buttons">
@@ -131,7 +171,11 @@
                         <option value="1">Deep Focus</option>
                         <option value="2">Night Work</option>
                     </select>
+                </div>
+                <div class="playback-controls">
+                    <button class="icon-btn" onclick="prevTrack()">⏮</button>
                     <button id="play-pause-btn" onclick="togglePlayPause()">⏸</button>
+                    <button class="icon-btn" onclick="nextTrack()">⏭</button>
                 </div>
             </div>
 
@@ -144,6 +188,7 @@
                 <span id="current-time">0:00</span> / <span id="total-time">0:00</span>
             </div>
         </div>
+    </div>
     </div>
 
     <!-- Notification Modal -->
@@ -161,6 +206,77 @@
             <h2>🏆 Achievement Unlocked!</h2>
             <p id="achievement-text"></p>
             <button onclick="closeAchievementModal()">OK</button>
+        </div>
+    </div>
+
+    <!-- Authentication Notification Modal -->
+    <div id="auth-notification-modal" class="notification-modal">
+        <div class="notification-content auth-notification">
+            <h2 id="auth-notification-title">🔐 Authentication</h2>
+            <p id="auth-notification-text"></p>
+            <button onclick="closeAuthNotification()">OK</button>
+        </div>
+    </div>
+
+    <!-- Authentication Modal -->
+    <div id="auth-modal" class="auth-modal">
+        <div class="auth-content">
+            <div class="auth-header">
+                <h2 id="auth-modal-title">Sign Up</h2>
+                <p id="auth-modal-subtitle">Create your account</p>
+            </div>
+            
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="signup-tab" onclick="switchAuthTab('signup')">Sign Up</button>
+                <button class="auth-tab" id="login-tab" onclick="switchAuthTab('login')">Login</button>
+            </div>
+            
+            <!-- Sign Up Form -->
+            <form class="auth-form active" id="signup-form" onsubmit="handleSignUp(event)">
+                <div class="form-group">
+                    <label for="signup-name">Username</label>
+                    <input type="text" id="signup-name" placeholder="Choose a username" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-email">Email</label>
+                    <input type="email" id="signup-email" placeholder="your@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-password">Password</label>
+                    <input type="password" id="signup-password" placeholder="Min 6 characters" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-confirm-password">Confirm Password</label>
+                    <input type="password" id="signup-confirm-password" placeholder="Re-enter password" required>
+                </div>
+                <button type="submit" class="auth-btn primary">Sign Up</button>
+            </form>
+            
+            <!-- Login Form -->
+            <form class="auth-form" id="login-form" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="login-email">Email</label>
+                    <input type="email" id="login-email" placeholder="your@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" placeholder="Enter password" required>
+                </div>
+                <button type="submit" class="auth-btn primary">Login</button>
+            </form>
+            
+            <div class="auth-divider">
+                <span>OR</span>
+            </div>
+            
+            <button class="auth-btn google" onclick="handleGoogleAuth()">
+                <span class="material-symbols-outlined">login</span>
+                Continue with Google
+            </button>
+            
+            <div class="auth-message" id="auth-message"></div>
+            
+            <button class="auth-close" onclick="closeAuthModal()">×</button>
         </div>
     </div>
 
