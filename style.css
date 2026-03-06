@@ -2170,6 +2170,23 @@ button:active {
     text-align: center;
 }
 
+.plan-notification-badge {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(76, 175, 80, 0.2);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    border: 1px solid rgba(76, 175, 80, 0.4);
+    transition: all 0.3s ease;
+}
+
+.plan-notification-badge:hover {
+    background: rgba(76, 175, 80, 0.3);
+    transform: translateY(-2px);
+}
+
 .plan-date-input {
     width: 100%;
     padding: 12px;
@@ -2520,6 +2537,22 @@ audio {
     max-width: 400px;
     text-align: center;
     box-shadow: 0 10px 40px rgba(230, 235, 254, 0.5);
+}
+
+.notification-content.plan-notification {
+    background: rgba(76, 175, 80, 0.9);
+    border-color: rgba(76, 175, 80, 1);
+}
+
+.notification-content.plan-notification h2,
+.notification-content.plan-notification .notification-title {
+    color: rgba(230, 235, 254, 1);
+}
+
+.notification-content.plan-notification .notification-message {
+    color: rgba(230, 235, 254, 0.8);
+    margin-bottom: 30px;
+    font-size: 1rem;
 }
 
 .notification-content h2 {

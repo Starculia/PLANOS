@@ -165,8 +165,12 @@
                     </div>
                     <div class="notification-badges" id="plan-notification-badges">
                         <div class="notification-badge">
-                            <span class="material-symbols-outlined">notifications</span>
+                            <span class="material-symbols-outlined">event_note</span>
                             <span class="badge-count" id="plan-badge-count">0</span>
+                        </div>
+                        <div class="plan-notification-badge" id="plan-notification-badge">
+                            <span class="material-symbols-outlined">notifications_active</span>
+                            <span class="badge-count" id="plan-notification-count">0</span>
                         </div>
                     </div>
                 </div>
@@ -240,7 +244,7 @@
     <!-- Notification Modal -->
     <div id="notification-modal" class="notification-modal">
         <div class="notification-content">
-            <h2>⏰ Timer Finished!</h2>
+            <h2 id="notification-title"></h2>
             <p id="notification-text"></p>
             <button onclick="closeNotification()">OK</button>
         </div>

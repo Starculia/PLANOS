@@ -706,18 +706,48 @@ function playNotificationSound(type = 'default') {
     }
 }
 
-function showNotification(taskTitle) {
+function showNotification(taskTitle, message = '', isTask = true) {
+    console.log('[PLANOS] showNotification called with:', { taskTitle, message, isTask });
+    console.log('[PLANOS] Current notification element:', document.getElementById('notification'));
+    console.log('[PLANOS] Current notification modal:', document.getElementById('notification-modal'));
+    
+    // Use existing notification modal system
     const modal = document.getElementById('notification-modal');
     const text = document.getElementById('notification-text');
-    if (text) text.textContent = `Time's up for "${taskTitle}"!`;
-    if (modal) modal.classList.add('show');
+    
+    console.log('[PLANOS] Modal element:', modal);
+    console.log('[PLANOS] Text element:', text);
+    
+    // Set appropriate title and message based on context
+    if (text) {
+        if (isTask) {
+            text.textContent = `Time's up for "${taskTitle}"!`;
+        } else {
+            text.textContent = taskTitle;
+        }
+        console.log('[PLANOS] Set text content to:', text.textContent);
+    }
+    
+    if (modal) {
+        console.log('[PLANOS] Adding show class to modal');
+        modal.classList.add('show');
+        
+        // Add plan-specific styling
+        if (!modal.classList.contains('plan-notification')) {
+            console.log('[PLANOS] Adding plan-notification class');
+            modal.classList.add('plan-notification');
+        }
+    }
+    
+    console.log('[PLANOS] Playing notification sound');
+    playNotificationSound();
 
-    playNotificationSound(); // Play the beep
-
-    // Browser notification with sound (manual - requires user interaction)
+    // Browser notification for plans
     if ("Notification" in window && Notification.permission === "granted") {
-        new Notification("PLANOS - Task Complete!", {
-            body: `Time's up for "${taskTitle}"!`,
+        const notificationTitle = isTask ? "PLANOS - Task Complete!" : `PLANOS - ${taskTitle}`;
+        console.log('[PLANOS] Creating browser notification:', notificationTitle);
+        new Notification(notificationTitle, {
+            body: message || (isTask ? `Time's up for "${taskTitle}"!` : ''),
             icon: "data:image/x-icon;base64,AAABAAEAEBAAAAAAAABoBQAAFgAAACg...", // Your favicon
             requireInteraction: true  // This makes browser notification manual
         });
@@ -726,6 +756,8 @@ function showNotification(taskTitle) {
     // Body animation
     document.body.style.animation = 'none';
     void document.body.offsetWidth;
+    
+    console.log('[PLANOS] Notification setup complete');
     document.body.style.animation = 'pulse 0.5s';
 }
 
@@ -1093,7 +1125,7 @@ function markAsFinished(taskId) {
         updatePointsAndLevel();
         
         playNotificationSound('complete');
-        showNotification(tasks[taskIndex].title);
+        showNotification(tasks[taskIndex].title, '', false);
         updateTaskDisplay();
     }
 }
@@ -1205,7 +1237,7 @@ function updateTimerDisplays() {
                 minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
             timer.style.color = 'rgba(254, 220, 255, 1)';
         } else {
-            timer.textContent = 'Time expired!';
+            timer.textContent = 'Plan Due!';
             timer.style.color = 'rgba(220, 53, 69, 1)';
         }
     });
@@ -1468,6 +1500,42 @@ function formatTime(seconds) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+function showPlanNotification(title, message = '') {
+    console.log('[PLANOS] showPlanNotification called:', title, message);
+    
+    // Use existing notification modal system
+    const modal = document.getElementById('notification-modal');
+    const text = document.getElementById('notification-text');
+    
+    if (text) {
+        text.textContent = title;
+    }
+    
+    if (modal) {
+        modal.classList.add('show');
+        
+        // Add plan-specific styling
+        if (!modal.classList.contains('plan-notification')) {
+            modal.classList.add('plan-notification');
+        }
+    }
+    
+    playNotificationSound();
+
+    // Browser notification for plans
+    if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(`PLANOS - ${title}`, {
+            body: message,
+            icon: "data:image/x-icon;base64,AAABAAEAEBAAAAAAAABoBQAAFgAAACg...", // Your favicon
+            requireInteraction: true
+        });
+    }
+
+    // Body animation
+    document.body.style.animation = 'none';
+    void document.body.offsetWidth;
+}
+
 // --- Planning System ---
 function createPlan() {
     const titleEl = document.getElementById('plan-title');
@@ -1483,7 +1551,7 @@ function createPlan() {
     const time = timeEl.value;
     
     if (!title || !date) {
-        showNotification('Please enter a title and select a date');
+        showNotification('Please enter a title and select a date', '', false);
         return;
     }
     
@@ -1512,7 +1580,7 @@ function createPlan() {
     }
     
     displayPlans();
-    showNotification('Plan created successfully!');
+    showPlanNotification('Plan created successfully!', '', false);
     playNotificationSound('add');
     
     // Update notification badge
@@ -1555,7 +1623,8 @@ function displayPlans() {
 
 function updatePlanNotificationBadge(allPlans) {
     const badgeCount = document.getElementById('plan-badge-count');
-    if (!badgeCount) return;
+    const notificationCount = document.getElementById('plan-notification-count');
+    if (!badgeCount || !notificationCount) return;
     
     const now = new Date();
     const activePlans = allPlans.filter(plan => {
@@ -1564,7 +1633,20 @@ function updatePlanNotificationBadge(allPlans) {
         return planDate >= now;
     });
     
+    // Count today's plans for separate notification
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const todayPlans = allPlans.filter(plan => {
+        if (!plan.date) return false;
+        const planDate = new Date(plan.date);
+        return planDate >= today && planDate < tomorrow;
+    });
+    
     badgeCount.textContent = activePlans.length;
+    notificationCount.textContent = todayPlans.length;
 }
 
 function createPlanCard(plan) {
@@ -1588,7 +1670,7 @@ function deletePlan(planId) {
         const filtered = allPlans.filter(p => p.id !== planId);
         localStorage.setItem('plans', JSON.stringify(filtered));
         displayPlans();
-        showNotification('Plan deleted');
+        showPlanNotification('Plan deleted', '', false);
         playNotificationSound('delete');
     }
 }
@@ -1610,7 +1692,7 @@ function setPlanReminder(plan) {
         // Check if reminder is within 24 hours
         if (timeUntilReminder <= 24 * 60 * 60 * 1000) {
             setTimeout(() => {
-                showNotification(`📅 Plan Reminder: ${plan.title}`, `Don't forget: ${plan.description}`);
+                showPlanNotification(`📅 Plan Reminder: ${plan.title}`, `Don't forget: ${plan.description}`);
                 playNotificationSound('notification');
             }, timeUntilReminder);
         }
@@ -1621,17 +1703,17 @@ function setPlanReminder(plan) {
 setInterval(checkPlanReminders, 60000); // Check every minute
 
 function checkPlanReminders() {
-    const plans = JSON.parse(localStorage.getItem('plans')) || [];
+    const allPlans = JSON.parse(localStorage.getItem('plans')) || [];
     const now = new Date();
     
-    plans.forEach(plan => {
+    allPlans.forEach(plan => {
         if (plan.date && plan.time) {
             const reminderDateTime = new Date(plan.date + 'T' + plan.time);
             const timeUntilReminder = reminderDateTime - now;
             
             // Check if reminder is due in the next minute
             if (timeUntilReminder > 0 && timeUntilReminder <= 60000) {
-                showNotification(`📅 Plan Due: ${plan.title}`, `Time for: ${plan.description}`);
+                showPlanNotification(`📅 Plan Due: ${plan.title}`, `Time for: ${plan.description}`);
                 playNotificationSound('notification');
             }
         }
