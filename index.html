@@ -58,6 +58,10 @@
                 <span class="material-symbols-outlined">assignment_turned_in</span>
                 <span class="nav-text">Finished Task</span>
             </button>
+            <button class="nav-btn" onclick="switchTab('planning')" title="Planning">
+                <span class="material-symbols-outlined">calendar_month</span>
+                <span class="nav-text">Plan Maker</span>
+            </button>
             <button class="nav-btn" onclick="switchTab('badges')" title="Badges">
                 <span class="material-symbols-outlined">military_tech</span>
                 <span class="nav-text">Badges</span>
@@ -146,6 +150,48 @@
             <ul class="task-list" id="finished-tasks">
                 <li class="empty-state">No finished task yet</li>
             </ul>
+        </div>
+        
+        <div id="planning-task" class="tab-content">
+            <h3>📅 Plan Maker</h3>
+            <div class="planning-container">
+                <div class="calendar-section">
+                    <h4>📆 Select Date & Time</h4>
+                    <div class="form-group">
+                        <input type="date" id="plan-date" class="plan-date-input">
+                    </div>
+                    <div class="form-group">
+                        <input type="time" id="plan-time" class="plan-time-input" placeholder="Reminder Time">
+                    </div>
+                    <div class="notification-badges" id="plan-notification-badges">
+                        <div class="notification-badge">
+                            <span class="material-symbols-outlined">notifications</span>
+                            <span class="badge-count" id="plan-badge-count">0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="plan-section">
+                    <h4>📝 Create Plan</h4>
+                    <div class="form-group">
+                        <input type="text" id="plan-title" placeholder="Plan Title" maxlength="50">
+                    </div>
+                    <div class="form-group">
+                        <textarea id="plan-description" placeholder="Plan Description" rows="4" maxlength="200"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <button onclick="createPlan()" class="btn-primary">Create Plan</button>
+                        <button onclick="clearPlans()" class="btn-secondary">Clear All Plans</button>
+                    </div>
+                </div>
+                
+                <div class="plans-list-section">
+                    <h4>📋 Your Plans</h4>
+                    <div class="plans-grid" id="plans-grid">
+                        <!-- Plans will be dynamically inserted here -->
+                    </div>
+                </div>
+            </div>
         </div>
         
         <div id="badges-task" class="tab-content">

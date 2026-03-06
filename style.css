@@ -2107,10 +2107,8 @@ button:active {
 /* Audio Player */
 #audio-player-container {
     position: fixed !important;
-    bottom: 20px !important;
-    right: 20px !important;
-    top: auto !important;
-    left: auto !important;
+    bottom: 20px;
+    right: 20px;
     background: rgba(0, 0, 0, 0.85);
     backdrop-filter: blur(15px);
     padding: 15px;
@@ -2120,6 +2118,171 @@ button:active {
     max-width: 350px;
     border: 2px solid rgba(230, 235, 254, 0.3);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Planning Section */
+.planning-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    padding: 1rem;
+}
+
+.calendar-section {
+    background: rgba(230, 235, 254, 0.1);
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid rgba(230, 235, 254, 0.2);
+}
+
+.notification-badges {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.notification-badge {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(230, 235, 254, 0.2);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    border: 1px solid rgba(230, 235, 254, 0.3);
+    transition: all 0.3s ease;
+}
+
+.notification-badge:hover {
+    background: rgba(230, 235, 254, 0.3);
+    transform: translateY(-2px);
+}
+
+.badge-count {
+    background: rgba(255, 99, 255, 0.8);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: bold;
+    padding: 0.2rem 0.5rem;
+    border-radius: 10px;
+    min-width: 20px;
+    text-align: center;
+}
+
+.plan-date-input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid rgba(230, 235, 254, 0.3);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.1);
+    color: rgba(230, 235, 254, 0.9);
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.8rem;
+}
+
+.plan-section {
+    background: rgba(230, 235, 254, 0.1);
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid rgba(230, 235, 254, 0.2);
+}
+
+.plan-time-input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid rgba(230, 235, 254, 0.3);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.1);
+    color: rgba(230, 235, 254, 0.9);
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.8rem;
+}
+
+.plans-list-section {
+    background: rgba(230, 235, 254, 0.1);
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid rgba(230, 235, 254, 0.2);
+}
+
+.plans-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+.plan-card {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(230, 235, 254, 0.2);
+    border-radius: 12px;
+    padding: 1rem;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.plan-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+}
+
+.plan-date {
+    font-size: 0.7rem;
+    color: rgba(230, 235, 254, 0.7);
+    margin-bottom: 0.5rem;
+}
+
+.plan-title {
+    font-size: 0.9rem;
+    font-weight: bold;
+    color: rgba(230, 235, 254, 1);
+    margin-bottom: 0.5rem;
+}
+
+.plan-description {
+    font-size: 0.8rem;
+    color: rgba(230, 235, 254, 0.8);
+    margin-bottom: 0.5rem;
+    line-height: 1.4;
+}
+
+.plan-time {
+    font-size: 0.8rem;
+    color: rgba(230, 235, 254, 0.7);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.plan-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, rgba(230, 235, 254, 0.3), rgba(230, 235, 254, 0.1));
+    color: rgba(230, 235, 254, 1);
+    border: 1px solid rgba(230, 235, 254, 0.5);
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, rgba(230, 235, 254, 0.4), rgba(230, 235, 254, 0.2));
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background: rgba(230, 235, 254, 0.1);
+    color: rgba(230, 235, 254, 0.7);
+    border: 1px solid rgba(230, 235, 254, 0.3);
+}
+
+.btn-secondary:hover {
+    background: rgba(230, 235, 254, 0.2);
+    transform: translateY(-2px);
 }
 
 #audio-player-container:hover {

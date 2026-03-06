@@ -555,7 +555,7 @@ function switchTab(tabName) {
     if (tabContent) tabContent.classList.add('active');
 
     const buttons = document.querySelectorAll('.nav-btn');
-    const tabMap = { 'create': 0, 'ongoing': 1, 'finished': 2, 'badges': 3 };
+    const tabMap = { 'create': 0, 'ongoing': 1, 'finished': 2, 'planning': 3, 'badges': 4 };
     const btnIndex = tabMap[tabName];
     if (btnIndex !== undefined && buttons[btnIndex]) buttons[btnIndex].classList.add('active');
     
@@ -1352,6 +1352,7 @@ document.addEventListener('DOMContentLoaded', function () {
     updatePointsAndLevel();
     displayAchievements();
     updateTaskDisplay();
+    displayPlans();
 
     audio = document.getElementById('audio-player');
     if (audio) {
@@ -1467,6 +1468,176 @@ function formatTime(seconds) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+// --- Planning System ---
+function createPlan() {
+    const titleEl = document.getElementById('plan-title');
+    const descEl = document.getElementById('plan-description');
+    const dateEl = document.getElementById('plan-date');
+    const timeEl = document.getElementById('plan-time');
+    
+    if (!titleEl || !descEl || !dateEl || !timeEl) return;
+    
+    const title = titleEl.value.trim();
+    const description = descEl.value.trim();
+    const date = dateEl.value;
+    const time = timeEl.value;
+    
+    if (!title || !date) {
+        showNotification('Please enter a title and select a date');
+        return;
+    }
+    
+    const allPlans = JSON.parse(localStorage.getItem('plans')) || [];
+    const newPlan = {
+        id: crypto.randomUUID(),
+        title: title,
+        description: description,
+        date: date,
+        time: time,
+        created_at: new Date().toISOString()
+    };
+    
+    allPlans.push(newPlan);
+    localStorage.setItem('plans', JSON.stringify(allPlans));
+    
+    // Clear form
+    titleEl.value = '';
+    descEl.value = '';
+    dateEl.value = '';
+    timeEl.value = '';
+    
+    // Set reminder
+    if (date && time) {
+        setPlanReminder(newPlan);
+    }
+    
+    displayPlans();
+    showNotification('Plan created successfully!');
+    playNotificationSound('add');
+    
+    // Update notification badge
+    const updatedPlans = JSON.parse(localStorage.getItem('plans')) || [];
+    updatePlanNotificationBadge(updatedPlans);
+}
+
+function clearPlans() {
+    if (confirm('Are you sure you want to clear all plans?')) {
+        localStorage.removeItem('plans');
+        displayPlans();
+        showNotification('All plans cleared');
+        playNotificationSound('delete');
+    }
+}
+
+function displayPlans() {
+    const plansGrid = document.getElementById('plans-grid');
+    if (!plansGrid) return;
+    
+    const allPlans = JSON.parse(localStorage.getItem('plans')) || [];
+    plansGrid.innerHTML = '';
+    
+    // Update notification badge
+    updatePlanNotificationBadge(allPlans);
+    
+    if (allPlans.length === 0) {
+        plansGrid.innerHTML = '<div class="empty-state">No plans yet. Create your first plan!</div>';
+        return;
+    }
+    
+    // Sort plans by date
+    allPlans.sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    allPlans.forEach(plan => {
+        const planCard = createPlanCard(plan);
+        plansGrid.appendChild(planCard);
+    });
+}
+
+function updatePlanNotificationBadge(allPlans) {
+    const badgeCount = document.getElementById('plan-badge-count');
+    if (!badgeCount) return;
+    
+    const now = new Date();
+    const activePlans = allPlans.filter(plan => {
+        if (!plan.date) return false;
+        const planDate = new Date(plan.date);
+        return planDate >= now;
+    });
+    
+    badgeCount.textContent = activePlans.length;
+}
+
+function createPlanCard(plan) {
+    const card = document.createElement('div');
+    card.className = 'plan-card';
+    card.innerHTML = `
+        <div class="plan-date">${formatDate(plan.date)}</div>
+        <div class="plan-title">${escapeHtml(plan.title)}</div>
+        <div class="plan-description">${escapeHtml(plan.description || 'No description')}</div>
+        ${plan.time ? `<div class="plan-time">⏰ ${plan.time}</div>` : ''}
+        <div class="plan-actions">
+            <button onclick="deletePlan('${plan.id}')" class="btn-small btn-danger">Delete</button>
+        </div>
+    `;
+    return card;
+}
+
+function deletePlan(planId) {
+    if (confirm('Are you sure you want to delete this plan?')) {
+        const allPlans = JSON.parse(localStorage.getItem('plans')) || [];
+        const filtered = allPlans.filter(p => p.id !== planId);
+        localStorage.setItem('plans', JSON.stringify(filtered));
+        displayPlans();
+        showNotification('Plan deleted');
+        playNotificationSound('delete');
+    }
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    const options = { month: 'short', day: 'numeric', year: 'numeric' };
+    return date.toLocaleDateString('en-US', options);
+}
+
+function setPlanReminder(plan) {
+    const reminderDate = new Date(plan.date + 'T' + plan.time);
+    const now = new Date();
+    
+    // Only set reminder if it's in the future
+    if (reminderDate > now) {
+        const timeUntilReminder = reminderDate - now;
+        
+        // Check if reminder is within 24 hours
+        if (timeUntilReminder <= 24 * 60 * 60 * 1000) {
+            setTimeout(() => {
+                showNotification(`📅 Plan Reminder: ${plan.title}`, `Don't forget: ${plan.description}`);
+                playNotificationSound('notification');
+            }, timeUntilReminder);
+        }
+    }
+}
+
+// Check for due plans periodically
+setInterval(checkPlanReminders, 60000); // Check every minute
+
+function checkPlanReminders() {
+    const plans = JSON.parse(localStorage.getItem('plans')) || [];
+    const now = new Date();
+    
+    plans.forEach(plan => {
+        if (plan.date && plan.time) {
+            const reminderDateTime = new Date(plan.date + 'T' + plan.time);
+            const timeUntilReminder = reminderDateTime - now;
+            
+            // Check if reminder is due in the next minute
+            if (timeUntilReminder > 0 && timeUntilReminder <= 60000) {
+                showNotification(`📅 Plan Due: ${plan.title}`, `Time for: ${plan.description}`);
+                playNotificationSound('notification');
+            }
+        }
+    });
+}
+
 // Export functions
 window.PLANOS = {
     createTask,
@@ -1477,5 +1648,8 @@ window.PLANOS = {
     nextTrack,
     prevTrack,
     toggleAudioPlayer,
+    createPlan,
+    clearPlans,
+    deletePlan,
     selectTrack
 };
