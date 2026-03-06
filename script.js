@@ -323,9 +323,16 @@ function initializeAuth() {
                 currentUser = session?.user || null;
                 updateAuthUI(currentUser);
                 
-                if (event === 'SIGNED_IN' && currentUser && !previousUser) {
+                if (event === 'SIGNED_IN' && currentUser) {
+                    // Load user-specific data from Supabase
+                    loadUserDataFromSupabase();
                     showAuthNotification('🎉 Welcome Back!', 'You are now logged in as ' + (currentUser.user_metadata?.username || 'User'), 'success');
                 } else if (event === 'SIGNED_OUT') {
+                    // Clear local data and show empty state
+                    localStorage.removeItem('tasks');
+                    localStorage.removeItem('points');
+                    localStorage.removeItem('achievements');
+                    clearTaskDisplay();
                     showAuthNotification('👋 Logged Out', 'You have been successfully logged out.', 'info');
                 }
             });
@@ -336,6 +343,79 @@ function initializeAuth() {
     };
     
     checkSupabase();
+}
+
+function loadUserDataFromSupabase() {
+    if (!currentUser) return;
+    
+    // Load user's tasks from Supabase
+    window.supabase
+        .from('tasks')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+        .then(({ data, error }) => {
+            if (error) {
+                console.error('[PLANOS] Error loading user tasks:', error);
+                return;
+            }
+            
+            if (data && data.length > 0) {
+                localStorage.setItem('tasks', JSON.stringify(data));
+                updateTaskDisplay();
+            } else {
+                // Clear any existing tasks
+                localStorage.setItem('tasks', JSON.stringify([]));
+                updateTaskDisplay();
+            }
+        });
+    
+    // Load user's progress from Supabase
+    window.supabase
+        .from('user_progress')
+        .select('points, level, achievements')
+        .eq('user_id', currentUser.id)
+        .single()
+        .then(({ data, error }) => {
+            if (error) {
+                console.error('[PLANOS] Error loading user progress:', error);
+                return;
+            }
+            
+            if (data) {
+                localStorage.setItem('points', data.points || 0);
+                
+                // Load achievements if they exist
+                if (data.achievements && data.achievements.length > 0) {
+                    localStorage.setItem('achievements', JSON.stringify(data.achievements));
+                    achievements = data.achievements;
+                }
+                
+                updatePointsAndLevel();
+            } else {
+                // Initialize with defaults
+                localStorage.setItem('points', '0');
+                updatePointsAndLevel();
+            }
+        });
+}
+
+function clearTaskDisplay() {
+    const ongoingList = document.getElementById('ongoing-tasks');
+    const finishedList = document.getElementById('finished-tasks');
+    
+    const ongoingListAlt = ongoingList || document.getElementById('ongoing-task');
+    const finishedListAlt = finishedList || document.getElementById('finished-task');
+    
+    const ongoingContainer = ongoingListAlt?.querySelector('.task-list, ul') || ongoingListAlt;
+    const finishedContainer = finishedListAlt?.querySelector('.task-list, ul') || finishedListAlt;
+    
+    if (ongoingContainer) {
+        ongoingContainer.innerHTML = '<li class="empty-state">No ongoing tasks yet</li>';
+    }
+    if (finishedContainer) {
+        finishedContainer.innerHTML = '<li class="empty-state">No finished tasks yet</li>';
+    }
 }
 
 // Make functions globally accessible
@@ -537,26 +617,44 @@ function tickTimers() {
         let changed = false;
 
         tasks.forEach(task => {
-            if (task.status === 'ongoing' && task.endTime) {
-                const end = new Date(task.endTime).getTime();
+            if (task.status === 'ongoing' && task.end_time) {
+                const end = new Date(task.end_time).getTime();
                 if (isNaN(end)) return;
                 if (end <= now) {
                     console.log(`[PLANOS] Task expired: ${task.title} (id:${task.id})`);
                     task.status = 'finished';
-                    task.endTime = null;
+                    task.end_time = null;
                     changed = true;
 
+                    // Update in Supabase if user is logged in
+                    if (currentUser && window.supabase) {
+                        window.supabase
+                            .from('tasks')
+                            .update({
+                                status: 'finished',
+                                end_time: null
+                            })
+                            .eq('id', task.id)
+                            .eq('user_id', currentUser.id)
+                            .then(({ error }) => {
+                                if (error) {
+                                    console.error('[PLANOS] Error updating expired task in Supabase:', error);
+                                }
+                            });
+                    }
+
                     const currentPoints = parseInt(localStorage.getItem('points')) || 0;
-                    const newPoints = currentPoints + 100;
+                    const newPoints = currentPoints + 50;
                     localStorage.setItem('points', newPoints);
                     updatePointsAndLevel();
+                    
                     showNotification(task.title);
                 }
             }
         });
 
         if (changed) {
-            saveTasks(tasks);
+            localStorage.setItem('tasks', JSON.stringify(tasks));
             updateTaskDisplay();
         }
         // Always update timer displays to ensure countdowns are accurate
@@ -857,20 +955,25 @@ function checkAchievements() {
 
     achievements.forEach(a => {
         if (!a.unlocked && a.level === currentLevel) {
+            a.unlocked = true;
+            changed = true;
 
             //Pop-Ups for level 0 & 1
             if (currentLevel >= 1) {
                 showAchievementNotification(a.name, a.description);
             }
-
-            a.unlocked = true;
-            changed = true;
         }
     });
 
     if (changed) {
         localStorage.setItem('achievements', JSON.stringify(achievements));
         displayAchievements();
+        
+        // Sync achievements to Supabase if user is logged in
+        if (currentUser && window.supabase) {
+            const currentPoints = parseInt(localStorage.getItem('points')) || 0;
+            syncProgressToSupabase(currentPoints, currentLevel);
+        }
     }
 }
 
@@ -918,20 +1021,41 @@ function createTask() {
 
 function addTask(title, description, status, durationMinutes = 0) {
     const tasks = loadTasks();
-    const taskId = getNextTaskId();
+    
+    // Generate UUID for Supabase compatibility
+    const taskId = crypto.randomUUID();
     const newTask = {
         id: taskId,
         title: title,
         description: description,
         status: status,
-        durationMinutes: durationMinutes,
-        createdAt: new Date().toISOString(),
-        endTime: durationMinutes > 0 ? new Date(Date.now() + durationMinutes * 60000).toISOString() : null
+        duration_minutes: durationMinutes,
+        created_at: new Date().toISOString(),
+        end_time: durationMinutes > 0 ? new Date(Date.now() + durationMinutes * 60000).toISOString() : null
     };
+    
+    // Save to localStorage first
     tasks.push(newTask);
-    saveTasks(tasks);
-    console.log('[PLANOS] added task:', newTask);
-    playNotificationSound('add');  // Add this line to play the sound
+    localStorage.setItem('tasks', JSON.stringify(tasks));
+    
+    // Also save to Supabase if user is logged in
+    if (currentUser && window.supabase) {
+        const taskToSave = {
+            ...newTask,
+            user_id: currentUser.id
+        };
+        
+        window.supabase
+            .from('tasks')
+            .insert(taskToSave)
+            .then(({ data, error }) => {
+                if (error) {
+                    console.error('[PLANOS] Error saving task to Supabase:', error);
+                }
+            });
+    }
+    
+    playNotificationSound('add');
     updateTaskDisplay();
 }
 
@@ -940,9 +1064,27 @@ function markAsFinished(taskId) {
     const taskIndex = tasks.findIndex(t => t.id === taskId);
     
     if (taskIndex !== -1) {
+        // Update in localStorage first
         tasks[taskIndex].status = 'finished';
-        tasks[taskIndex].endTime = null;
-        saveTasks(tasks);
+        tasks[taskIndex].end_time = null;
+        localStorage.setItem('tasks', JSON.stringify(tasks));
+        
+        // Also update in Supabase if user is logged in
+        if (currentUser && window.supabase) {
+            window.supabase
+                .from('tasks')
+                .update({
+                    status: 'finished',
+                    end_time: null
+                })
+                .eq('id', taskId)
+                .eq('user_id', currentUser.id)
+                .then(({ error }) => {
+                    if (error) {
+                        console.error('[PLANOS] Error updating task status in Supabase:', error);
+                    }
+                });
+        }
         
         // Award points
         const currentPoints = parseInt(localStorage.getItem('points')) || 0;
@@ -951,6 +1093,7 @@ function markAsFinished(taskId) {
         updatePointsAndLevel();
         
         playNotificationSound('complete');
+        showNotification(tasks[taskIndex].title);
         updateTaskDisplay();
     }
 }
@@ -958,7 +1101,22 @@ function markAsFinished(taskId) {
 function deleteTask(taskId) {
     const tasks = loadTasks();
     const filtered = tasks.filter(t => t.id !== taskId);
-    saveTasks(filtered);
+    localStorage.setItem('tasks', JSON.stringify(filtered));
+    
+    // Also delete from Supabase if user is logged in
+    if (currentUser && window.supabase) {
+        window.supabase
+            .from('tasks')
+            .delete()
+            .eq('id', taskId)
+            .eq('user_id', currentUser.id)
+            .then(({ error }) => {
+                if (error) {
+                    console.error('[PLANOS] Error deleting task from Supabase:', error);
+                }
+            });
+    }
+    
     updateTaskDisplay();
 }
 
@@ -967,17 +1125,30 @@ function updateTaskDisplay() {
     const tasks = loadTasks();
     const ongoingList = document.getElementById('ongoing-tasks');
     const finishedList = document.getElementById('finished-tasks');
+    
+    // Try alternative IDs if main ones don't exist
+    const ongoingListAlt = ongoingList || document.getElementById('ongoing-task');
+    const finishedListAlt = finishedList || document.getElementById('finished-task');
+    
     const ongoingTasks = tasks.filter(task => task.status === 'ongoing');
     const finishedTasks = tasks.filter(task => task.status === 'finished');
 
-    if (ongoingList) ongoingList.innerHTML = ongoingTasks.length > 0 ? '' : '<li class="empty-state">No ongoing tasks yet</li>';
-    if (finishedList) finishedList.innerHTML = finishedTasks.length > 0 ? '' : '<li class="empty-state">No finished tasks yet</li>';
+    if (ongoingListAlt) ongoingListAlt.querySelector('.task-list, ul') ? 
+        ongoingListAlt.querySelector('.task-list, ul').innerHTML = ongoingTasks.length > 0 ? '' : '<li class="empty-state">No ongoing tasks yet</li>' :
+        ongoingListAlt.innerHTML = ongoingTasks.length > 0 ? '' : '<li class="empty-state">No ongoing tasks yet</li>';
+        
+    if (finishedListAlt) finishedListAlt.querySelector('.task-list, ul') ? 
+        finishedListAlt.querySelector('.task-list, ul').innerHTML = finishedTasks.length > 0 ? '' : '<li class="empty-state">No finished tasks yet</li>' :
+        finishedListAlt.innerHTML = finishedTasks.length > 0 ? '' : '<li class="empty-state">No finished tasks yet</li>';
+
+    const ongoingContainer = ongoingListAlt.querySelector('.task-list, ul') || ongoingListAlt;
+    const finishedContainer = finishedListAlt.querySelector('.task-list, ul') || finishedListAlt;
 
     ongoingTasks.forEach(task => {
-        if (ongoingList) ongoingList.appendChild(createTaskElement(task));
+        if (ongoingContainer) ongoingContainer.appendChild(createTaskElement(task));
     });
     finishedTasks.forEach(task => {
-        if (finishedList) finishedList.appendChild(createTaskElement(task));
+        if (finishedContainer) finishedContainer.appendChild(createTaskElement(task));
     });
 
     updateTimerDisplays();
@@ -989,8 +1160,8 @@ function createTaskElement(task) {
     li.dataset.taskId = task.id;
 
     let timerDisplay = '';
-    if (task.status === 'ongoing' && task.endTime) {
-        timerDisplay = `<div class="task-timer" data-end-time="${task.endTime}">
+    if (task.status === 'ongoing' && task.end_time) {
+        timerDisplay = `<div class="task-timer" data-end-time="${task.end_time}">
             <span class="timer-label">⏱️ Time remaining:</span>
             <span class="timer-display">Calculating...</span>
         </div>`;
@@ -1002,9 +1173,9 @@ function createTaskElement(task) {
         ${timerDisplay}
         <div class="task-actions">
             ${task.status === 'ongoing'
-            ? `<button class="btn-small btn-success" onclick="markAsFinished(${task.id})">Mark as Finished</button>
-               <button class="btn-small btn-danger" onclick="deleteTask(${task.id})">Delete</button>`
-            : `<button class="btn-small btn-secondary" onclick="deleteTask(${task.id})">Delete</button>`}
+            ? `<button class="btn-small btn-success" onclick="markAsFinished('${task.id}')">Mark as Finished</button>
+               <button class="btn-small btn-danger" onclick="deleteTask('${task.id}')">Delete</button>`
+            : `<button class="btn-small btn-secondary" onclick="deleteTask('${task.id}')">Delete</button>`}
         </div>`;
     return li;
 }
@@ -1081,7 +1252,51 @@ function updatePointsAndLevel() {
         }
     }
 
+    // Sync with Supabase if user is logged in
+    if (currentUser && window.supabase) {
+        syncProgressToSupabase(points, level);
+    }
+
+    // Check for new achievements
     checkAchievements();
+}
+
+function syncProgressToSupabase(points, level) {
+    if (!currentUser) return;
+    
+    window.supabase
+        .from('user_progress')
+        .upsert({
+            user_id: currentUser.id,
+            points: points,
+            level: level,
+            achievements: JSON.parse(localStorage.getItem('achievements')) || []
+        }, {
+            onConflict: 'user_id' // Specify the conflict column
+        })
+        .then(({ error }) => {
+            if (error) {
+                console.error('[PLANOS] Error syncing progress to Supabase:', error);
+                // Try update as fallback
+                window.supabase
+                    .from('user_progress')
+                    .update({
+                        points: points,
+                        level: level,
+                        achievements: JSON.parse(localStorage.getItem('achievements')) || []
+                    })
+                    .eq('user_id', currentUser.id)
+                    .then(({ error: updateError }) => {
+                        if (updateError) {
+                            console.error('[PLANOS] Error updating progress to Supabase:', updateError);
+                        } else {
+                            console.log('[PLANOS] Progress updated to Supabase:', { points, level });
+                        }
+                    });
+            } else {
+                console.log('[PLANOS] Progress synced to Supabase:', { points, level });
+            }
+        });
 }
 
 // --- Helpers ---
