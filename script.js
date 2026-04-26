@@ -14,11 +14,11 @@ function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const mainWrapper = document.querySelector('.main-wrapper');
     const toggleBtn = document.querySelector('.sidebar-toggle');
-    
+
     if (sidebar && mainWrapper) {
         sidebar.classList.toggle('minimized');
         mainWrapper.classList.toggle('minimized');
-        
+
         // Update toggle button text
         if (sidebar.classList.contains('minimized')) {
             toggleBtn.textContent = '▶';
@@ -67,7 +67,7 @@ function switchAuthTab(tab) {
     const loginForm = document.getElementById('login-form');
     const modalTitle = document.getElementById('auth-modal-title');
     const modalSubtitle = document.getElementById('auth-modal-subtitle');
-    
+
     if (tab === 'signup') {
         signupTab?.classList.add('active');
         loginTab?.classList.remove('active');
@@ -90,7 +90,7 @@ function updateAuthUI(user) {
     const authLoggedOut = document.getElementById('auth-logged-out');
     const authLoggedIn = document.getElementById('auth-logged-in');
     const headerUsername = document.getElementById('header-username');
-    
+
     if (user) {
         // User is logged in
         if (authDropdownText) authDropdownText.textContent = 'Hey, ' + (user.user_metadata?.username || 'User');
@@ -111,7 +111,7 @@ function signOut() {
     if (dropdown) {
         dropdown.classList.remove('show');
     }
-    
+
     // Sign out from Supabase
     if (window.supabase) {
         window.supabase.auth.signOut().then(() => {
@@ -125,10 +125,10 @@ function signOut() {
 }
 
 // Close dropdown when clicking outside
-document.addEventListener('click', function(event) {
+document.addEventListener('click', function (event) {
     const dropdown = document.getElementById('auth-dropdown-menu');
     const dropdownBtn = document.querySelector('.auth-dropdown-btn');
-    
+
     if (dropdown && dropdownBtn && !dropdownBtn.contains(event.target) && !dropdown.contains(event.target)) {
         dropdown.classList.remove('show');
     }
@@ -137,58 +137,58 @@ document.addEventListener('click', function(event) {
 // --- Authentication Handlers ---
 function handleSignUp(event) {
     event.preventDefault();
-    
+
     const username = document.getElementById('signup-name')?.value?.trim();
     const email = document.getElementById('signup-email')?.value?.trim();
     const password = document.getElementById('signup-password')?.value;
     const confirmPassword = document.getElementById('signup-confirm-password')?.value;
-    
-    console.log('[PLANOS] Sign up attempt:', { 
-        username, 
-        email: email ? email.substring(0, 3) + '***' : 'empty', 
+
+    console.log('[PLANOS] Sign up attempt:', {
+        username,
+        email: email ? email.substring(0, 3) + '***' : 'empty',
         hasPassword: !!password,
         passwordsMatch: password === confirmPassword
     });
-    
+
     if (!username || !email || !password || !confirmPassword) {
         showAuthMessage('Please fill in all fields', 'error');
         return;
     }
-    
+
     if (password.length < 6) {
         showAuthMessage('Password must be at least 6 characters', 'error');
         return;
     }
-    
+
     if (password !== confirmPassword) {
         showAuthMessage('Passwords do not match', 'error');
         return;
     }
-    
+
     if (!window.supabase) {
         console.error('[PLANOS] Supabase not available during sign up');
         showAuthMessage('Authentication service not available', 'error');
         return;
     }
-    
+
     showAuthMessage('Creating account...', 'info');
-    
+
     window.supabase.auth.signUp({
         email,
         password,
-        options: { 
-            data: { 
+        options: {
+            data: {
                 username: username.toLowerCase().replace(/\s+/g, '_')
             }
         }
     }).then(({ data, error }) => {
         console.log('[PLANOS] Sign up response:', { data, error });
-        
+
         if (error) {
             console.error('[PLANOS] Sign up error details:', error);
             throw error;
         }
-        
+
         showAuthMessage('Account created! Please check your email to verify.', 'success');
         showAuthNotification('📧 Account Created!', 'Please check your email to verify your account before logging in.', 'info');
         setTimeout(() => {
@@ -196,10 +196,10 @@ function handleSignUp(event) {
         }, 2000);
     }).catch(error => {
         console.error('[PLANOS] Sign up error:', error);
-        
+
         // Handle specific error messages
         let errorMessage = 'Sign up failed. Please try again.';
-        
+
         if (error.message?.includes('User already registered')) {
             errorMessage = 'This email is already registered. Try logging in instead.';
         } else if (error.message?.includes('Password should be at least')) {
@@ -209,59 +209,59 @@ function handleSignUp(event) {
         } else if (error.message) {
             errorMessage = error.message;
         }
-        
+
         showAuthMessage(errorMessage, 'error');
     });
 }
 
 function handleLogin(event) {
     event.preventDefault();
-    
+
     const email = document.getElementById('login-email')?.value?.trim();
     const password = document.getElementById('login-password')?.value;
-    
+
     console.log('[PLANOS] Login attempt:', { email: email ? email.substring(0, 3) + '***' : 'empty', hasPassword: !!password });
-    
+
     if (!email || !password) {
         showAuthMessage('Please fill in all fields', 'error');
         return;
     }
-    
+
     if (!window.supabase) {
         console.error('[PLANOS] Supabase not available during login');
         showAuthMessage('Authentication service not available', 'error');
         return;
     }
-    
+
     showAuthMessage('Signing in...', 'info');
-    
+
     window.supabase.auth.signInWithPassword({
         email,
         password
     }).then(({ data, error }) => {
         console.log('[PLANOS] Login response:', { data, error });
-        
+
         if (error) {
             console.error('[PLANOS] Login error details:', error);
             throw error;
         }
-        
+
         if (!data.user) {
             throw new Error('No user data returned');
         }
-        
+
         currentUser = data.user;
         console.log('[PLANOS] Login successful for:', currentUser.email);
-        
+
         updateAuthUI(currentUser);
         closeAuthModal();
         showAuthNotification('🎉 Login Successful!', 'Welcome back, ' + (currentUser.user_metadata?.username || 'User') + '!', 'success');
     }).catch(error => {
         console.error('[PLANOS] Login error:', error);
-        
+
         // Handle specific error messages
         let errorMessage = 'Login failed. Please try again.';
-        
+
         if (error.message?.includes('Invalid login credentials')) {
             errorMessage = 'Invalid email or password';
         } else if (error.message?.includes('Email not confirmed')) {
@@ -271,7 +271,7 @@ function handleLogin(event) {
         } else if (error.message) {
             errorMessage = error.message;
         }
-        
+
         showAuthMessage(errorMessage, 'error');
     });
 }
@@ -281,9 +281,9 @@ function handleGoogleAuth() {
         showAuthMessage('Authentication service not available', 'error');
         return;
     }
-    
+
     showAuthMessage('Connecting to Google...', 'info');
-    
+
     window.supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -309,20 +309,20 @@ function initializeAuth() {
     const checkSupabase = () => {
         if (window.supabase) {
             console.log('[PLANOS] Initializing authentication...');
-            
+
             // Check current auth state
             window.supabase.auth.getSession().then(({ data: { session } }) => {
                 currentUser = session?.user || null;
                 updateAuthUI(currentUser);
                 console.log('[PLANOS] Auth state initialized:', currentUser ? 'Logged in' : 'Logged out');
             });
-            
+
             // Listen for auth changes
             window.supabase.auth.onAuthStateChange((event, session) => {
                 const previousUser = currentUser;
                 currentUser = session?.user || null;
                 updateAuthUI(currentUser);
-                
+
                 if (event === 'SIGNED_IN' && currentUser) {
                     // Load user-specific data from Supabase
                     loadUserDataFromSupabase();
@@ -341,13 +341,13 @@ function initializeAuth() {
             setTimeout(checkSupabase, 100);
         }
     };
-    
+
     checkSupabase();
 }
 
 function loadUserDataFromSupabase() {
     if (!currentUser) return;
-    
+
     // Load user's tasks from Supabase
     window.supabase
         .from('tasks')
@@ -359,7 +359,7 @@ function loadUserDataFromSupabase() {
                 console.error('[PLANOS] Error loading user tasks:', error);
                 return;
             }
-            
+
             if (data && data.length > 0) {
                 localStorage.setItem('tasks', JSON.stringify(data));
                 updateTaskDisplay();
@@ -369,7 +369,7 @@ function loadUserDataFromSupabase() {
                 updateTaskDisplay();
             }
         });
-    
+
     // Load user's progress from Supabase
     window.supabase
         .from('user_progress')
@@ -381,16 +381,16 @@ function loadUserDataFromSupabase() {
                 console.error('[PLANOS] Error loading user progress:', error);
                 return;
             }
-            
+
             if (data) {
                 localStorage.setItem('points', data.points || 0);
-                
+
                 // Load achievements if they exist
                 if (data.achievements && data.achievements.length > 0) {
                     localStorage.setItem('achievements', JSON.stringify(data.achievements));
                     achievements = data.achievements;
                 }
-                
+
                 updatePointsAndLevel();
             } else {
                 // Initialize with defaults
@@ -403,13 +403,13 @@ function loadUserDataFromSupabase() {
 function clearTaskDisplay() {
     const ongoingList = document.getElementById('ongoing-tasks');
     const finishedList = document.getElementById('finished-tasks');
-    
+
     const ongoingListAlt = ongoingList || document.getElementById('ongoing-task');
     const finishedListAlt = finishedList || document.getElementById('finished-task');
-    
+
     const ongoingContainer = ongoingListAlt?.querySelector('.task-list, ul') || ongoingListAlt;
     const finishedContainer = finishedListAlt?.querySelector('.task-list, ul') || finishedListAlt;
-    
+
     if (ongoingContainer) {
         ongoingContainer.innerHTML = '<li class="empty-state">No ongoing tasks yet</li>';
     }
@@ -447,7 +447,7 @@ function loadTrack(index) {
 
     audio.src = playlist[index].src;
     audio.load();
-    
+
     // Update dropdown to reflect current track
     const trackSelector = document.getElementById('track-selector');
     if (trackSelector) trackSelector.value = index;
@@ -678,10 +678,10 @@ function playNotificationSound(type = 'default') {
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
-        
+
         oscillator.connect(gainNode);
         gainNode.connect(audioContext.destination);
-        
+
         // Different sound types
         const sounds = {
             'default': { freq: 1000, type: 'sine', duration: 0.5, volume: 0.3 },
@@ -690,17 +690,17 @@ function playNotificationSound(type = 'default') {
             'error': { freq: 800, type: 'square', duration: 0.2, volume: 0.2 },
             'alert': { freq: 2000, type: 'sine', duration: 0.1, volume: 0.2 }
         };
-        
+
         const sound = sounds[type] || sounds['default'];
-        
+
         // Check if oscillator and frequency exist
         if (oscillator && oscillator.frequency) {
             oscillator.frequency.setValueAtTime(sound.freq, audioContext.currentTime);
             oscillator.type = sound.type;
-            
+
             gainNode.gain.setValueAtTime(sound.volume, audioContext.currentTime);
             gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + sound.duration);
-            
+
             oscillator.start(audioContext.currentTime);
             oscillator.stop(audioContext.currentTime + sound.duration);
         } else {
@@ -716,14 +716,14 @@ function showNotification(taskTitle, message = '', isTask = true) {
     console.log('[PLANOS] showNotification called with:', { taskTitle, message, isTask });
     console.log('[PLANOS] Current notification element:', document.getElementById('notification'));
     console.log('[PLANOS] Current notification modal:', document.getElementById('notification-modal'));
-    
+
     // Use existing notification modal system
     const modal = document.getElementById('notification-modal');
     const text = document.getElementById('notification-text');
-    
+
     console.log('[PLANOS] Modal element:', modal);
     console.log('[PLANOS] Text element:', text);
-    
+
     // Set appropriate title and message based on context
     if (text) {
         if (isTask) {
@@ -733,18 +733,18 @@ function showNotification(taskTitle, message = '', isTask = true) {
         }
         console.log('[PLANOS] Set text content to:', text.textContent);
     }
-    
+
     if (modal) {
         console.log('[PLANOS] Adding show class to modal');
         modal.classList.add('show');
-        
+
         // Add plan-specific styling
         if (!modal.classList.contains('plan-notification')) {
             console.log('[PLANOS] Adding plan-notification class');
             modal.classList.add('plan-notification');
         }
     }
-    
+
     console.log('[PLANOS] Playing notification sound');
     playNotificationSound();
 
@@ -762,7 +762,7 @@ function showNotification(taskTitle, message = '', isTask = true) {
     // Body animation
     document.body.style.animation = 'none';
     void document.body.offsetWidth;
-    
+
     console.log('[PLANOS] Notification setup complete');
     document.body.style.animation = 'pulse 0.5s';
 }
@@ -779,14 +779,14 @@ function showAuthNotification(title, message, type = 'info') {
     const modal = document.getElementById('auth-notification-modal');
     const titleEl = document.getElementById('auth-notification-title');
     const textEl = document.getElementById('auth-notification-text');
-    
+
     if (titleEl) titleEl.textContent = title;
     if (textEl) textEl.textContent = message;
     if (modal) modal.classList.add('show');
-    
+
     // Play authentication sound
     playAuthNotificationSound(type);
-    
+
     // Body animation for auth notifications
     document.body.style.animation = 'none';
     void document.body.offsetWidth;
@@ -804,10 +804,10 @@ function playAuthNotificationSound(type = 'info') {
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
-        
+
         oscillator.connect(gainNode);
         gainNode.connect(audioContext.destination);
-        
+
         // Different sounds for different auth events
         const authSounds = {
             'success': { freq: 1200, type: 'triangle', duration: 0.4, volume: 0.3 },
@@ -815,17 +815,17 @@ function playAuthNotificationSound(type = 'info') {
             'info': { freq: 800, type: 'sine', duration: 0.3, volume: 0.25 },
             'warning': { freq: 1000, type: 'square', duration: 0.2, volume: 0.2 }
         };
-        
+
         const sound = authSounds[type] || authSounds['info'];
-        
+
         // Check if oscillator and frequency exist
         if (oscillator && oscillator.frequency) {
             oscillator.frequency.setValueAtTime(sound.freq, audioContext.currentTime);
             oscillator.type = sound.type;
-            
+
             gainNode.gain.setValueAtTime(sound.volume, audioContext.currentTime);
             gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + sound.duration);
-            
+
             oscillator.start(audioContext.currentTime);
             oscillator.stop(audioContext.currentTime + sound.duration);
         } else {
@@ -843,19 +843,19 @@ function playAchievementSound() {
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
-        
+
         oscillator.connect(gainNode);
         gainNode.connect(audioContext.destination);
-        
+
         // Check if oscillator and frequency exist
         if (oscillator && oscillator.frequency) {
             oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
             oscillator.frequency.linearRampToValueAtTime(1200, audioContext.currentTime + 0.2);
             oscillator.type = 'sine';
-            
+
             gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
             gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.6);
-            
+
             oscillator.start(audioContext.currentTime);
             oscillator.stop(audioContext.currentTime + 0.6);
         } else {
@@ -870,16 +870,16 @@ function playAchievementSound() {
 function showAchievementNotification(name, description) {
     const modal = document.getElementById('achievement-modal');
     const text = document.getElementById('achievement-text');
-    
+
     if (text) {
         text.innerHTML = `<strong>${name}</strong><br><small>${description}</small>`;
     }
-    
+
     if (modal) {
         modal.classList.add('show');
         // Removed auto-close - now manual only
     }
-    
+
     playAchievementSound();
 }
 
@@ -892,20 +892,20 @@ function displayAllBadges() {
     const badgesGrid = document.getElementById('badges-grid');
     if (!badgesGrid) return;
     badgesGrid.innerHTML = '';
-    
+
     const currentPoints = parseInt(localStorage.getItem('points')) || 0;
     const currentLevel = getLevelFromPoints(currentPoints);
 
     achievements.forEach((achievement, index) => {
         const isUnlocked = achievement.unlocked;
         const progress = isUnlocked ? 100 : calculateProgress(currentLevel, achievement.level);
-        
+
         const badgeCard = document.createElement('div');
         badgeCard.className = `badge-card ${isUnlocked ? 'unlocked' : 'locked'}`;
-        
+
         const badgeIcon = getBadgeIcon(achievement.level);
         const lockStatus = isUnlocked ? '🏆' : '🔒';
-        
+
         badgeCard.innerHTML = `
             <div class="lock-status">${lockStatus}</div>
             <div class="badge-icon">${badgeIcon}</div>
@@ -921,7 +921,7 @@ function displayAllBadges() {
                 </div>
             ` : ''}
         `;
-        
+
         badgesGrid.appendChild(badgeCard);
     });
 }
@@ -929,7 +929,7 @@ function displayAllBadges() {
 function getBadgeIcon(level) {
     const icons = {
         0: '🌟',
-        2: '🚀', 
+        2: '🚀',
         5: '⚡',
         10: '🔥',
         25: '💎',
@@ -992,9 +992,9 @@ function getLevelFromPoints(points) {
  * Hard:   60+ min   → 2.0x
  */
 function getTierInfo(durationMinutes) {
-    if (durationMinutes >= 60) return { tier: 'Hard',   multiplier: 2.0, label: '2x',  emoji: '🔴', color: '#ff4d4d', cssClass: 'tier-hard'   };
+    if (durationMinutes >= 60) return { tier: 'Hard', multiplier: 2.0, label: '2x', emoji: '🔴', color: '#ff4d4d', cssClass: 'tier-hard' };
     if (durationMinutes >= 26) return { tier: 'Medium', multiplier: 1.5, label: '1.5x', emoji: '🟡', color: '#ffd700', cssClass: 'tier-medium' };
-    return                            { tier: 'Easy',   multiplier: 1.0, label: '1x',  emoji: '🟢', color: '#4dff91', cssClass: 'tier-easy'   };
+    return { tier: 'Easy', multiplier: 1.0, label: '1x', emoji: '🟢', color: '#4dff91', cssClass: 'tier-easy' };
 }
 
 /**
@@ -1071,9 +1071,9 @@ async function addLeaderboardEntry(task, points) {
  */
 async function renderLeaderboard() {
     const tiers = [
-        { key: 'easy',   label: 'Easy',   emoji: '🟢', color: '#4dff91' },
+        { key: 'easy', label: 'Easy', emoji: '🟢', color: '#4dff91' },
         { key: 'medium', label: 'Medium', emoji: '🟡', color: '#ffd700' },
-        { key: 'hard',   label: 'Hard',   emoji: '🔴', color: '#ff4d4d' }
+        { key: 'hard', label: 'Hard', emoji: '🔴', color: '#ff4d4d' }
     ];
 
     // Show loading state
@@ -1117,9 +1117,9 @@ async function renderLeaderboard() {
     // --- Fallback: read from localStorage ---
     const lb = getLeaderboard();
     const localGrouped = {
-        easy:   lb.easy.map(e => ({ title: e.title, username: e.username, points: e.points, duration: e.duration, date: e.date })),
+        easy: lb.easy.map(e => ({ title: e.title, username: e.username, points: e.points, duration: e.duration, date: e.date })),
         medium: lb.medium.map(e => ({ title: e.title, username: e.username, points: e.points, duration: e.duration, date: e.date })),
-        hard:   lb.hard.map(e => ({ title: e.title, username: e.username, points: e.points, duration: e.duration, date: e.date }))
+        hard: lb.hard.map(e => ({ title: e.title, username: e.username, points: e.points, duration: e.duration, date: e.date }))
     };
     _renderLeaderboardPanels(localGrouped, tiers);
 }
@@ -1220,7 +1220,7 @@ function checkAchievements() {
     if (changed) {
         localStorage.setItem('achievements', JSON.stringify(achievements));
         displayAchievements();
-        
+
         // Sync achievements to Supabase if user is logged in
         if (currentUser && window.supabase) {
             const currentPoints = parseInt(localStorage.getItem('points')) || 0;
@@ -1273,7 +1273,7 @@ function createTask() {
 
 function addTask(title, description, status, durationMinutes = 0) {
     const tasks = loadTasks();
-    
+
     // Generate UUID for Supabase compatibility
     const taskId = crypto.randomUUID();
     const newTask = {
@@ -1285,18 +1285,18 @@ function addTask(title, description, status, durationMinutes = 0) {
         created_at: new Date().toISOString(),
         end_time: durationMinutes > 0 ? new Date(Date.now() + durationMinutes * 60000).toISOString() : null
     };
-    
+
     // Save to localStorage first
     tasks.push(newTask);
     localStorage.setItem('tasks', JSON.stringify(tasks));
-    
+
     // Also save to Supabase if user is logged in
     if (currentUser && window.supabase) {
         const taskToSave = {
             ...newTask,
             user_id: currentUser.id
         };
-        
+
         window.supabase
             .from('tasks')
             .insert(taskToSave)
@@ -1306,7 +1306,7 @@ function addTask(title, description, status, durationMinutes = 0) {
                 }
             });
     }
-    
+
     playNotificationSound('add');
     updateTaskDisplay();
 }
@@ -1369,7 +1369,7 @@ function deleteTask(taskId) {
     const tasks = loadTasks();
     const filtered = tasks.filter(t => t.id !== taskId);
     localStorage.setItem('tasks', JSON.stringify(filtered));
-    
+
     // Also delete from Supabase if user is logged in
     if (currentUser && window.supabase) {
         window.supabase
@@ -1383,7 +1383,7 @@ function deleteTask(taskId) {
                 }
             });
     }
-    
+
     updateTaskDisplay();
 }
 
@@ -1392,19 +1392,19 @@ function updateTaskDisplay() {
     const tasks = loadTasks();
     const ongoingList = document.getElementById('ongoing-tasks');
     const finishedList = document.getElementById('finished-tasks');
-    
+
     // Try alternative IDs if main ones don't exist
     const ongoingListAlt = ongoingList || document.getElementById('ongoing-task');
     const finishedListAlt = finishedList || document.getElementById('finished-task');
-    
+
     const ongoingTasks = tasks.filter(task => task.status === 'ongoing');
     const finishedTasks = tasks.filter(task => task.status === 'finished');
 
-    if (ongoingListAlt) ongoingListAlt.querySelector('.task-list, ul') ? 
+    if (ongoingListAlt) ongoingListAlt.querySelector('.task-list, ul') ?
         ongoingListAlt.querySelector('.task-list, ul').innerHTML = ongoingTasks.length > 0 ? '' : '<li class="empty-state">No ongoing tasks yet</li>' :
         ongoingListAlt.innerHTML = ongoingTasks.length > 0 ? '' : '<li class="empty-state">No ongoing tasks yet</li>';
-        
-    if (finishedListAlt) finishedListAlt.querySelector('.task-list, ul') ? 
+
+    if (finishedListAlt) finishedListAlt.querySelector('.task-list, ul') ?
         finishedListAlt.querySelector('.task-list, ul').innerHTML = finishedTasks.length > 0 ? '' : '<li class="empty-state">No finished tasks yet</li>' :
         finishedListAlt.innerHTML = finishedTasks.length > 0 ? '' : '<li class="empty-state">No finished tasks yet</li>';
 
@@ -1611,7 +1611,7 @@ function updatePointsAndLevel() {
 
 function syncProgressToSupabase(points, level) {
     if (!currentUser) return;
-    
+
     window.supabase
         .from('user_progress')
         .upsert({
@@ -1664,7 +1664,7 @@ function togglePlayPause() {
     }
 
     if (audio.paused) {
-        audio.play().catch(() => {});
+        audio.play().catch(() => { });
         isPlaying = true;
         document.getElementById('play-pause-btn').textContent = '⏸';
     } else {
@@ -1756,7 +1756,7 @@ function nextTrack(autoPlay = false) {
     loadTrack(currentTrackIndex);
     // Auto-play if requested or if currently playing
     if (autoPlay || isPlaying) {
-        audio.play().catch(() => {});
+        audio.play().catch(() => { });
         isPlaying = true;
         document.getElementById('play-pause-btn').textContent = '⏸';
     }
@@ -1768,7 +1768,7 @@ function prevTrack() {
     loadTrack(currentTrackIndex);
     // Auto-play if currently playing
     if (isPlaying) {
-        audio.play().catch(() => {});
+        audio.play().catch(() => { });
         isPlaying = true;
         document.getElementById('play-pause-btn').textContent = '⏸';
     }
@@ -1786,7 +1786,7 @@ function setupAudioPlayer() {
         isPlaying = false;
         const btn = document.getElementById('play-pause-btn');
         if (btn) btn.textContent = '▶';
-        
+
         // Automatically play next track when current track ends
         nextTrack(true);
     });
@@ -1824,24 +1824,24 @@ function formatTime(seconds) {
 
 function showPlanNotification(title, message = '') {
     console.log('[PLANOS] showPlanNotification called:', title, message);
-    
+
     // Use existing notification modal system
     const modal = document.getElementById('notification-modal');
     const text = document.getElementById('notification-text');
-    
+
     if (text) {
         text.textContent = title;
     }
-    
+
     if (modal) {
         modal.classList.add('show');
-        
+
         // Add plan-specific styling
         if (!modal.classList.contains('plan-notification')) {
             modal.classList.add('plan-notification');
         }
     }
-    
+
     playNotificationSound();
 
     // Browser notification for plans
@@ -1915,7 +1915,7 @@ function createPlan() {
         // Error message already shown by validatePlanDateTime()
         return;
     }
-    
+
     const allPlans = JSON.parse(localStorage.getItem('plans')) || [];
     const newPlan = {
         id: crypto.randomUUID(),
@@ -1925,25 +1925,25 @@ function createPlan() {
         time: time,
         created_at: new Date().toISOString()
     };
-    
+
     allPlans.push(newPlan);
     localStorage.setItem('plans', JSON.stringify(allPlans));
-    
+
     // Clear form
     titleEl.value = '';
     descEl.value = '';
     dateEl.value = '';
     timeEl.value = '';
-    
+
     // Set reminder
     if (date && time) {
         setPlanReminder(newPlan);
     }
-    
+
     displayPlans();
     showPlanNotification('Plan created successfully!', '', false);
     playNotificationSound('add');
-    
+
     // Update notification badge
     const updatedPlans = JSON.parse(localStorage.getItem('plans')) || [];
     updatePlanNotificationBadge(updatedPlans);
@@ -1961,21 +1961,21 @@ function clearPlans() {
 function displayPlans() {
     const plansGrid = document.getElementById('plans-grid');
     if (!plansGrid) return;
-    
+
     const allPlans = JSON.parse(localStorage.getItem('plans')) || [];
     plansGrid.innerHTML = '';
-    
+
     // Update notification badge
     updatePlanNotificationBadge(allPlans);
-    
+
     if (allPlans.length === 0) {
         plansGrid.innerHTML = '<div class="empty-state">No plans yet. Create your first plan!</div>';
         return;
     }
-    
+
     // Sort plans by date
     allPlans.sort((a, b) => new Date(a.date) - new Date(b.date));
-    
+
     allPlans.forEach(plan => {
         const planCard = createPlanCard(plan);
         plansGrid.appendChild(planCard);
@@ -1986,26 +1986,26 @@ function updatePlanNotificationBadge(allPlans) {
     const badgeCount = document.getElementById('plan-badge-count');
     const notificationCount = document.getElementById('plan-notification-count');
     if (!badgeCount || !notificationCount) return;
-    
+
     const now = new Date();
     const activePlans = allPlans.filter(plan => {
         if (!plan.date) return false;
         const planDate = new Date(plan.date);
         return planDate >= now;
     });
-    
+
     // Count today's plans for separate notification
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
+
     const todayPlans = allPlans.filter(plan => {
         if (!plan.date) return false;
         const planDate = new Date(plan.date);
         return planDate >= today && planDate < tomorrow;
     });
-    
+
     badgeCount.textContent = activePlans.length;
     notificationCount.textContent = todayPlans.length;
 }
@@ -2045,11 +2045,11 @@ function formatDate(dateString) {
 function setPlanReminder(plan) {
     const reminderDate = new Date(plan.date + 'T' + plan.time);
     const now = new Date();
-    
+
     // Only set reminder if it's in the future
     if (reminderDate > now) {
         const timeUntilReminder = reminderDate - now;
-        
+
         // Check if reminder is within 24 hours
         if (timeUntilReminder <= 24 * 60 * 60 * 1000) {
             setTimeout(() => {
@@ -2066,12 +2066,12 @@ setInterval(checkPlanReminders, 60000); // Check every minute
 function checkPlanReminders() {
     const allPlans = JSON.parse(localStorage.getItem('plans')) || [];
     const now = new Date();
-    
+
     allPlans.forEach(plan => {
         if (plan.date && plan.time) {
             const reminderDateTime = new Date(plan.date + 'T' + plan.time);
             const timeUntilReminder = reminderDateTime - now;
-            
+
             // Check if reminder is due in the next minute
             if (timeUntilReminder > 0 && timeUntilReminder <= 60000) {
                 showPlanNotification(`📅 Plan Due: ${plan.title}`, `Time for: ${plan.description}`);
