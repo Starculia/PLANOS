@@ -72,8 +72,8 @@
                 <span class="nav-text">Badges</span>
             </button>
             <button class="nav-btn" onclick="switchTab('leaderboard')" title="Leaderboard">
-                <span class="material-symbols-outlined">leaderboard</span>
-                <span class="nav-text">Leaderboard</span>
+                <span class="material-symbols-outlined">task_alt</span>
+                <span class="nav-text">Task Tracker</span>
             </button>
             <button class="nav-btn" onclick="switchTab('about')" title="About Us">
                 <span class="material-symbols-outlined">groups</span>
@@ -81,17 +81,65 @@
             </button>
         </div>
 
+        <!-- Inventory Panel -->
+        <div class="sidebar-inventory" id="sidebar-inventory">
+            <button class="inventory-toggle" onclick="toggleInventoryPanel()">
+                <span>🎒 INVENTORY</span>
+                <span id="inventory-arrow">▼</span>
+            </button>
+            <div class="inventory-body" id="inventory-body">
+                <div class="inventory-themes" id="inventory-themes">
+                    <div class="inventory-empty">No themes yet.<br>Complete tasks to find loot!</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Level System at Bottom -->
         <div class="sidebar-level" id="sidebar-level">
+            <!-- Floating particles background -->
+            <div class="level-particles" aria-hidden="true">
+                <span class="lp lp1"></span>
+                <span class="lp lp2"></span>
+                <span class="lp lp3"></span>
+                <span class="lp lp4"></span>
+                <span class="lp lp5"></span>
+            </div>
+
             <div class="level-container">
-                <div class="level-text">Level <span id="level-display">0</span></div>
-                <div class="level-title" id="level-title">Newbie</div>
-                <div class="level-progress">
-                    <div class="level-progress-fill" id="level-progress" style="width: 0%"></div>
+                <!-- Level ring + number -->
+                <div class="level-ring-wrap">
+                    <svg class="level-ring-svg" viewBox="0 0 80 80" aria-hidden="true">
+                        <circle class="ring-bg"  cx="40" cy="40" r="34"/>
+                        <circle class="ring-xp"  cx="40" cy="40" r="34" id="ring-xp-circle"
+                                stroke-dasharray="213.63"
+                                stroke-dashoffset="213.63"/>
+                    </svg>
+                    <div class="level-ring-inner">
+                        <div class="level-num" id="level-display">0</div>
+                        <div class="level-lv-label">LV</div>
+                    </div>
                 </div>
-                <div class="points-text" id="pointsDisplay">
-                    Points: 0
+
+                <!-- Rank title -->
+                <div class="level-rank-row">
+                    <span class="level-rank-icon" id="level-rank-icon">⚔️</span>
+                    <span class="level-title" id="level-title">Newbie</span>
                 </div>
+
+                <!-- XP Bar -->
+                <div class="xp-bar-wrap">
+                    <div class="xp-bar-track">
+                        <div class="xp-bar-fill" id="level-progress" style="width:0%">
+                            <div class="xp-bar-shimmer"></div>
+                        </div>
+                    </div>
+                    <div class="xp-label-row">
+                        <span class="xp-label">XP</span>
+                        <span class="xp-numbers" id="pointsDisplay">0 / 100</span>
+                    </div>
+                </div>
+
+                <!-- Achievement badges -->
                 <div id="achievement-badges"></div>
             </div>
         </div>
@@ -147,6 +195,7 @@
                     <label for="task-minutes" class="time-label">Minutes:</label>
                     <input type="number" id="task-minutes" class="time-input" min="0" max="59" value="0">
                 </div>
+                
                 <div class="form-group">
                     <button onclick="createTask()">Create Task</button>
                 </div>
@@ -498,6 +547,58 @@
             <div class="auth-message" id="auth-message"></div>
 
             <button class="auth-close" onclick="closeAuthModal()">×</button>
+        </div>
+    </div>
+
+    <!-- ====== LOOT BOX WIDGET (floating, bottom-right) ====== -->
+    <div id="lootbox-widget" class="lootbox-widget lootbox-hidden" onclick="openLootBox()" title="Click to open your loot box!" role="button" aria-label="Open Loot Box">
+        <div class="lootbox-sparkle-ring" id="lootbox-sparkle-ring"></div>
+        <div class="lootbox-chest" id="lootbox-chest">🎁</div>
+        <div class="lootbox-label">LOOT DROPPED!</div>
+    </div>
+
+    <!-- ====== LOOT BURST OVERLAY ====== -->
+    <div id="lootbox-burst" class="lootbox-burst-overlay" onclick="closeLootBurstOverlay()">
+        <div class="lootbox-burst-inner">
+            <div class="burst-icon" id="burst-reward-icon">✨</div>
+            <div class="burst-reward-name" id="burst-reward-name">Cyberpunk Theme</div>
+            <div class="burst-reward-desc" id="burst-reward-desc">Neon Pink activated!</div>
+            <div class="burst-tap-hint">TAP TO CLOSE</div>
+        </div>
+        <div id="burst-particles" class="burst-particles"></div>
+    </div>
+
+   <!-- ====== LEVEL UP MODAL ======-->
+    <div id="levelup-modal" class="levelup-modal" aria-modal="true" role="dialog" aria-label="Level Up!">
+        <div class="levelup-content">
+            <div class="levelup-pixel-frame">
+                <div class="levelup-scanlines"></div>
+                <div class="levelup-header">★ LEVEL UP! ★</div>
+                <div class="levelup-badge-wrap">
+                    <div class="levelup-badge" id="levelup-badge">LV</div>
+                    <div class="levelup-number" id="levelup-number">1</div>
+                </div>
+                <div class="levelup-message" id="levelup-message">You leveled up!</div>
+                <div class="levelup-xp-note">Keep completing tasks to<br>reach the next level!</div>
+                <button class="levelup-close-btn" onclick="closeLevelUpModal()" id="levelup-close-btn">▶ CONTINUE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====== EXECUTION MASTER MODAL ====== -->
+    <div id="execution-master-modal" class="levelup-modal" aria-modal="true" role="dialog" aria-label="Achievement Unlocked">
+        <div class="levelup-content">
+            <div class="levelup-pixel-frame execution-master-frame">
+                <div class="levelup-scanlines"></div>
+                <div class="levelup-header">🏆 ACHIEVEMENT!</div>
+                <div class="levelup-badge-wrap">
+                    <div class="levelup-badge execution-badge">EM</div>
+                    <div class="levelup-number" style="font-size:2rem;">🔥</div>
+                </div>
+                <div class="levelup-message">Execution Master</div>
+                <div class="levelup-xp-note">You've completed 5 Urgent tasks.<br>No excuses. Pure execution.</div>
+                <button class="levelup-close-btn" onclick="closeExecutionMasterModal()" id="execution-master-close-btn">▶ AWESOME</button>
+            </div>
         </div>
     </div>
 

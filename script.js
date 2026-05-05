@@ -1239,9 +1239,11 @@ function createTask() {
     const descEl = document.getElementById('task-description');
     const hoursEl = document.getElementById('task-hours');
     const minutesEl = document.getElementById('task-minutes');
+    const categoryEl = document.getElementById('task-category');
 
     const title = titleEl ? titleEl.value.trim() : '';
     const description = descEl ? descEl.value.trim() : '';
+    const category = categoryEl ? categoryEl.value : 'Normal';
     let hours = hoursEl ? parseInt(hoursEl.value) : 0;
     let minutes = minutesEl ? parseInt(minutesEl.value) : 0;
 
@@ -1261,17 +1263,18 @@ function createTask() {
         }
     }
 
-    addTask(title, description, 'ongoing', totalMinutes);
+    addTask(title, description, 'ongoing', totalMinutes, category);
 
     if (titleEl) titleEl.value = '';
     if (descEl) descEl.value = '';
     if (hoursEl) hoursEl.value = '0';
     if (minutesEl) minutesEl.value = '0';
+    if (categoryEl) categoryEl.value = 'Normal';
 
     switchTab('ongoing');
 }
 
-function addTask(title, description, status, durationMinutes = 0) {
+function addTask(title, description, status, durationMinutes = 0, category = 'Normal') {
     const tasks = loadTasks();
 
     // Generate UUID for Supabase compatibility
@@ -1280,6 +1283,7 @@ function addTask(title, description, status, durationMinutes = 0) {
         id: taskId,
         title: title,
         description: description,
+        category: category,
         status: status,
         duration_minutes: durationMinutes,
         created_at: new Date().toISOString(),
@@ -1316,13 +1320,29 @@ function markAsFinished(taskId) {
     const taskIndex = tasks.findIndex(t => t.id === taskId);
 
     if (taskIndex !== -1) {
-        // Anti-spam: manual finish awards 0 points.
-        // Only the timer auto-expiry (tickTimers) awards tier-calculated points.
-        tasks[taskIndex].status = 'finished';
-        tasks[taskIndex].end_time = null;
+        const task = tasks[taskIndex];
+        task.status = 'finished';
+        task.end_time = null;
         localStorage.setItem('tasks', JSON.stringify(tasks));
 
-        // Update in Supabase if user is logged in
+        // ── Visual Juice: shake body + glow the task card ──
+        triggerFinishJuice(taskId);
+
+        // ── Award 50 points for completion ──
+        const oldPoints = parseInt(localStorage.getItem('points')) || 0;
+        const newPoints = oldPoints + 50;
+        localStorage.setItem('points', newPoints);
+
+        // ── Check for level-up with the NEW formula (100 * level) ──
+        checkLevelUp(newPoints, oldPoints);
+
+        // ── Check Execution Master achievement ──
+        checkExecutionMasterAchievement(task);
+
+        // ── Update UI points display & sync to Supabase ──
+        updatePointsAndLevel();
+
+        // ── Update task in Supabase if logged in ──
         if (currentUser && window.supabase) {
             window.supabase
                 .from('tasks')
@@ -1332,12 +1352,242 @@ function markAsFinished(taskId) {
                 .then(({ error }) => {
                     if (error) console.error('[PLANOS] Error updating task in Supabase:', error);
                 });
+
+            // Sync new points to user_progress table
+            const newLevel = Math.floor(newPoints / 100);
+            syncProgressToSupabase(newPoints, newLevel);
         }
 
-        // No points awarded for manual finish — show informational toast
-        showEarlyFinishNotification(tasks[taskIndex].title);
+        showEarlyFinishNotification(task.title);
         playNotificationSound('complete');
         updateTaskDisplay();
+
+        // ── Loot Box drop (only for tasks ≥ 1 minute) ──
+        rollLootDrop(task);
+    }
+}
+
+// ─────────────────────────────────────────────
+// LEVELING SYSTEM
+// Formula: variable XP per level (100 → 120 → 140 → …)
+// Use getLevelFromPoints() for ALL level calculations.
+// ─────────────────────────────────────────────
+
+/**
+ * Compares old vs new level and shows the Level Up Modal if the player
+ * crossed a level boundary.  Call after awarding points.
+ * @param {number} newPoints  - total points AFTER the task was completed
+ * @param {number} oldPoints  - total points BEFORE the task was completed
+ */
+function checkLevelUp(newPoints, oldPoints) {
+    const newLevel = getLevelFromPoints(newPoints);
+    const oldLevel = getLevelFromPoints(oldPoints);
+
+    if (newLevel > oldLevel) {
+        // Show modal for every level crossed (handles multi-level jumps)
+        for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) {
+            showLevelUpModal(lvl);
+        }
+    }
+}
+
+/** Opens the pixel-art Level Up Modal and populates it with the new level number. */
+function showLevelUpModal(level) {
+    const modal    = document.getElementById('levelup-modal');
+    const numEl    = document.getElementById('levelup-number');
+    const msgEl    = document.getElementById('levelup-message');
+    const badgeEl  = document.getElementById('levelup-badge');
+
+    if (!modal) return;
+
+    // ── Level number ──
+    if (numEl) numEl.textContent = level;
+
+    // ── Badge label: show rank icon + "LV" ──
+    if (badgeEl) {
+        const rankIcons = [
+            { threshold: 0,   icon: '🌱' },
+            { threshold: 2,   icon: '⚔️' },
+            { threshold: 5,   icon: '🛡️' },
+            { threshold: 10,  icon: '🏹' },
+            { threshold: 25,  icon: '🔥' },
+            { threshold: 50,  icon: '💎' },
+            { threshold: 100, icon: '👑' },
+        ];
+        let icon = rankIcons[0].icon;
+        for (const r of rankIcons) { if (level >= r.threshold) icon = r.icon; }
+        badgeEl.textContent = `${icon} LV`;
+    }
+
+    // ── Flavour message ──
+    if (msgEl) msgEl.textContent = getLevelUpFlavourText(level);
+
+    // ── Dynamic XP note: how much XP is needed for the NEXT level ──
+    const noteEl = modal.querySelector('.levelup-xp-note');
+    if (noteEl) {
+        // Calculate XP required for next level from current level
+        let total = 0, req = 100;
+        for (let i = 0; i < level; i++) { total += req; req += 20; }
+        // req is now the XP needed for level → level+1
+        noteEl.innerHTML =
+            `Next level needs <strong>${req}</strong> XP<br>Keep completing tasks!`;
+    }
+
+    modal.classList.add('show');
+    playLevelUpSound();
+}
+
+/** Closes the Level Up Modal. */
+function closeLevelUpModal() {
+    const modal = document.getElementById('levelup-modal');
+    if (modal) modal.classList.remove('show');
+}
+
+/** Returns retro flavour text based on the new level. */
+function getLevelUpFlavourText(level) {
+    if (level === 1)   return 'First level cleared!';
+    if (level === 2)   return 'Getting started...';
+    if (level < 5)     return 'Apprentice rising!';
+    if (level === 5)   return 'Task Handler!';
+    if (level < 10)    return 'Building momentum...';
+    if (level === 10)  return 'Consistency Builder!';
+    if (level < 25)    return 'On a roll! Keep going!';
+    if (level === 25)  return 'Productivity Mindset!';
+    if (level < 50)    return 'Unstoppable force!';
+    if (level === 50)  return 'Workflow Architect!';
+    if (level < 100)   return 'Elite Planner status!';
+    if (level === 100) return 'EXECUTION MASTER! 👑';
+    return `Level ${level} — Legendary!`;
+}
+
+
+/** Plays a short ascending chime for the level-up event. */
+function playLevelUpSound() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        // C5  E5  G5  C6  E6 — triumphant arpeggio
+        [523.25, 659.25, 783.99, 1046.50, 1318.51].forEach((freq, i) => {
+            const osc  = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            const t = ctx.currentTime + i * 0.1;
+            gain.gain.setValueAtTime(0.35, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+            osc.start(t);
+            osc.stop(t + 0.3);
+        });
+    } catch (_) { /* non-critical */ }
+}
+
+// ─────────────────────────────────────────────
+// EXECUTION MASTER ACHIEVEMENT
+// Unlocked when the user completes 5 Urgent tasks.
+// Progress is stored in user_stats (localStorage)
+// and synced to Supabase user_progress metadata.
+// ─────────────────────────────────────────────
+
+/** Called on every task completion.  If the task is Urgent, increments the
+ *  counter and fires the modal once the threshold is reached. */
+function checkExecutionMasterAchievement(task) {
+    if (!task || task.category !== 'Urgent') return;
+
+    // Read / initialise user_stats from localStorage
+    const stats = getUserStats();
+
+    // Skip if badge already earned
+    if (stats.execution_master_unlocked) return;
+
+    stats.urgent_completed = (stats.urgent_completed || 0) + 1;
+    saveUserStats(stats);
+
+    console.log(`[PLANOS] Urgent tasks completed: ${stats.urgent_completed} / 5`);
+
+    if (stats.urgent_completed >= 5) {
+        stats.execution_master_unlocked = true;
+        saveUserStats(stats);
+        showExecutionMasterModal();
+        syncExecutionMasterToSupabase(stats);
+    }
+}
+
+/** Returns the user_stats object from localStorage (creates it if absent). */
+function getUserStats() {
+    try {
+        return JSON.parse(localStorage.getItem('user_stats')) || {};
+    } catch (_) {
+        return {};
+    }
+}
+
+/** Persists the user_stats object to localStorage. */
+function saveUserStats(stats) {
+    localStorage.setItem('user_stats', JSON.stringify(stats));
+}
+
+/** Shows the Execution Master achievement modal. */
+function showExecutionMasterModal() {
+    const modal = document.getElementById('execution-master-modal');
+    if (modal) modal.classList.add('show');
+    playLevelUpSound(); // reuse the triumphant sound
+}
+
+/** Closes the Execution Master modal. */
+function closeExecutionMasterModal() {
+    const modal = document.getElementById('execution-master-modal');
+    if (modal) modal.classList.remove('show');
+}
+
+/**
+ * Placeholder: syncs the Execution Master unlock to the user_progress table.
+ * Extend this when the column is added to the Supabase schema.
+ */
+function syncExecutionMasterToSupabase(stats) {
+    if (!currentUser || !window.supabase) return;
+
+    // Placeholder sync — stores stats as metadata in user_progress.
+    // Add an `achievements_meta` (JSONB) column to user_progress for full support.
+    window.supabase
+        .from('user_progress')
+        .update({ achievements_meta: stats })
+        .eq('user_id', currentUser.id)
+        .then(({ error }) => {
+            if (error) {
+                console.warn('[PLANOS] Could not sync Execution Master to Supabase (column may not exist yet):', error.message);
+            } else {
+                console.log('[PLANOS] Execution Master synced to Supabase.');
+            }
+        });
+}
+
+// ─────────────────────────────────────────────
+// JUICE HELPERS
+// ─────────────────────────────────────────────
+
+/**
+ * Shakes the body and applies a green glow to the finishing task card.
+ * The glow targets the card in the current DOM (before updateTaskDisplay
+ * re-renders it).
+ */
+function triggerFinishJuice(taskId) {
+    // Shake body
+    document.body.classList.remove('shake-active');
+    // Force reflow so the animation restarts cleanly even if called twice quickly
+    void document.body.offsetWidth;
+    document.body.classList.add('shake-active');
+    document.body.addEventListener('animationend', () => {
+        document.body.classList.remove('shake-active');
+    }, { once: true });
+
+    // Glow on the task card
+    const card = document.querySelector(`.task-item[data-task-id="${taskId}"]`);
+    if (card) {
+        card.classList.remove('task-glow');
+        void card.offsetWidth;
+        card.classList.add('task-glow');
+        card.addEventListener('animationend', () => card.classList.remove('task-glow'), { once: true });
     }
 }
 
@@ -1459,9 +1709,16 @@ function createTaskElement(task) {
         finishedBadge = `<span class="tier-finished-badge ${tierInfo.cssClass}">${tierInfo.emoji} ${tierInfo.tier} · ${pts} pts</span>`;
     }
 
+    // Category badge
+    const cat = task.category || 'Normal';
+    const catClass = cat === 'Urgent' ? 'urgent' : cat === 'Low Priority' ? 'low' : 'normal';
+    const catLabel = cat === 'Urgent' ? '🔥 URGENT' : cat === 'Low Priority' ? '🔵 LOW' : '⚪ NORMAL';
+    const categoryBadge = `<span class="task-category-badge ${catClass}">${catLabel}</span>`;
+
     li.innerHTML = `
         <div class="task-header">
             <span class="task-title">${escapeHtml(task.title)}</span>
+            ${categoryBadge}
             ${finishedBadge}
         </div>
         <div class="task-description">${escapeHtml(task.description || 'No description')}</div>
@@ -1565,39 +1822,91 @@ function updatePointsAndLevel() {
     ensurePointsDisplayExists();
 
     const pointsDisplay = document.getElementById('pointsDisplay');
-    const levelDisplay = document.getElementById('level-display');
-    const levelTitle = document.getElementById('level-title');
-    const progressBar = document.getElementById('level-progress');
+    const levelDisplay  = document.getElementById('level-display');
+    const levelTitle    = document.getElementById('level-title');
+    const progressBar   = document.getElementById('level-progress');
+    const ringCircle    = document.getElementById('ring-xp-circle');
+    const rankIcon      = document.getElementById('level-rank-icon');
 
-    let level = 0;
+    let level    = 0;
     let required = 100;
-    let total = 0;
+    let total    = 0;
 
     while (points >= total + required) {
-        total += required;
+        total    += required;
         required += 20;
         level++;
     }
 
-    const currentXP = points - total;
+    const currentXP      = points - total;
     const progressPercent = (currentXP / required) * 100;
 
+    // ── Number & title ──
     if (levelDisplay) levelDisplay.textContent = level;
-    if (progressBar) progressBar.style.width = `${progressPercent}%`;
-
-    // FORMAT point: 120 / 255
-    if (pointsDisplay) {
-        pointsDisplay.textContent = `Points: ${currentXP} / ${required}`;
-    }
 
     if (levelTitle) {
         if (level === 0 || level === 1) {
-            levelTitle.textContent = "Newbie";
+            levelTitle.textContent = 'Newbie';
         } else if (level === 2) {
-            levelTitle.textContent = "Getting Started";
+            levelTitle.textContent = 'Getting Started';
+        } else if (level < 5) {
+            levelTitle.textContent = 'Apprentice';
+        } else if (level < 10) {
+            levelTitle.textContent = 'Task Handler';
+        } else if (level < 25) {
+            levelTitle.textContent = 'Consistency Builder';
+        } else if (level < 50) {
+            levelTitle.textContent = 'Productivity Mindset';
+        } else if (level < 100) {
+            levelTitle.textContent = 'Workflow Architect';
         } else {
-            levelTitle.textContent = `Level ${level}`;
+            levelTitle.textContent = 'Execution Master';
         }
+    }
+
+    // ── Rank icon based on level ──
+    if (rankIcon) {
+        const rankIcons = [
+            { threshold: 0,   icon: '🌱' },
+            { threshold: 2,   icon: '⚔️' },
+            { threshold: 5,   icon: '🛡️' },
+            { threshold: 10,  icon: '🏹' },
+            { threshold: 25,  icon: '🔥' },
+            { threshold: 50,  icon: '💎' },
+            { threshold: 100, icon: '👑' },
+        ];
+        let chosenIcon = rankIcons[0].icon;
+        for (const r of rankIcons) {
+            if (level >= r.threshold) chosenIcon = r.icon;
+        }
+        rankIcon.textContent = chosenIcon;
+    }
+
+    // ── Flat XP progress bar ──
+    if (progressBar) progressBar.style.width = `${progressPercent}%`;
+
+    // ── SVG ring ──
+    if (ringCircle) {
+        // Ensure the gradient <defs> block exists inside the SVG
+        const svg = ringCircle.closest('svg');
+        if (svg && !svg.querySelector('#xpGrad')) {
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            defs.innerHTML = `
+                <linearGradient id="xpGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%"   stop-color="#6d28d9"/>
+                    <stop offset="50%"  stop-color="#a78bfa"/>
+                    <stop offset="100%" stop-color="#38bdf8"/>
+                </linearGradient>`;
+            svg.insertBefore(defs, svg.firstChild);
+        }
+        const circumference = 213.63; // 2 * π * 34
+        const offset = circumference - (progressPercent / 100) * circumference;
+        ringCircle.style.strokeDashoffset = offset;
+    }
+
+    // ── XP numbers display ──
+    if (pointsDisplay) {
+        pointsDisplay.textContent = `${currentXP} / ${required}`;
     }
 
     // Sync with Supabase if user is logged in
@@ -1701,6 +2010,8 @@ document.addEventListener('DOMContentLoaded', function () {
     displayAchievements();
     updateTaskDisplay();
     displayPlans();
+    restoreSavedTheme();
+    renderInventory();
 
     audio = document.getElementById('audio-player');
     if (audio) {
@@ -2099,3 +2410,356 @@ window.PLANOS = {
     getTierInfo,
     calculateTierPoints
 };
+// Expose necessary functions globally
+window.openLootBox = openLootBox;
+window.closeLootBurstOverlay = closeLootBurstOverlay;
+window.equipTheme = equipTheme;
+window.toggleInventoryPanel = toggleInventoryPanel;
+
+// ============================================================
+// PLANOS — LOOT BOX SYSTEM
+// 20% drop chance on task completion.
+// Three cosmetic themes: Cyberpunk, Matrix, Gold.
+// Themes persist in localStorage + sync to Supabase.
+// ============================================================
+
+const LOOT_THEMES = [
+    {
+        id: 'cyberpunk',
+        name: 'Cyberpunk',
+        desc: 'Neon Pink activated!',
+        icon: '🌸',
+        rarity: 'Epic',
+        cssClass: 'theme-cyberpunk'
+    },
+    {
+        id: 'matrix',
+        name: 'Matrix',
+        desc: 'Lime Green activated!',
+        icon: '💚',
+        rarity: 'Rare',
+        cssClass: 'theme-matrix'
+    },
+    {
+        id: 'gold',
+        name: 'Gold',
+        desc: 'Golden Aura activated!',
+        icon: '✨',
+        rarity: 'Legendary',
+        cssClass: 'theme-gold'
+    }
+];
+
+/** Pre-rolled theme waiting for the player to click the chest. */
+let _pendingLootTheme = null;
+
+// ─── Drop Logic ───────────────────────────────────────────────
+
+/**
+ * Returns a random theme the player has NOT yet unlocked,
+ * or null if they own everything.
+ */
+function getLockedTheme() {
+    const inventory = getLootInventory();
+    const locked = LOOT_THEMES.filter(t => !inventory.themes.includes(t.id));
+    if (locked.length === 0) return null;
+    return locked[Math.floor(Math.random() * locked.length)];
+}
+
+/**
+ * Called from markAsFinished.
+ * Rules:
+ *   - Task must have been created with >= 1 minute duration.
+ *   - At least one theme must still be locked.
+ *   - 20% random chance.
+ * @param {object} task  The completed task object.
+ */
+function rollLootDrop(task) {
+    // Gate 1: task must be a timed task (>= 1 minute)
+    if (!task || (task.duration_minutes || 0) < 1) return;
+
+    // Gate 2: must have at least one theme still locked
+    const lockedTheme = getLockedTheme();
+    if (!lockedTheme) {
+        console.log('[PLANOS] All themes unlocked — no loot drop possible.');
+        return;
+    }
+
+    // Gate 3: 20% chance
+    if (Math.random() < 0.20) {
+        _pendingLootTheme = lockedTheme;
+        showLootDropWidget();
+    }
+}
+
+// ─── Widget (floating chest) ───────────────────────────────────
+
+function showLootDropWidget() {
+    const widget = document.getElementById('lootbox-widget');
+    if (!widget) return;
+
+    widget.classList.remove('lootbox-hidden', 'lootbox-opening');
+    // Re-trigger animation even if called again quickly
+    void widget.offsetWidth;
+    widget.classList.add('lootbox-visible');
+}
+
+function openLootBox() {
+    const widget = document.getElementById('lootbox-widget');
+    if (!widget || !_pendingLootTheme) return;
+
+    // Prevent double-open
+    widget.onclick = null;
+
+    // Shake animation
+    widget.classList.add('lootbox-opening');
+
+    // After shake completes → burst + award
+    setTimeout(() => {
+        widget.classList.remove('lootbox-visible', 'lootbox-opening');
+        widget.classList.add('lootbox-hidden');
+        // Restore click handler for next drop
+        widget.onclick = openLootBox;
+
+        showLootBurstOverlay(_pendingLootTheme);
+        awardTheme(_pendingLootTheme);
+        _pendingLootTheme = null;
+    }, 800);
+}
+
+// ─── Burst Overlay ────────────────────────────────────────────
+
+function showLootBurstOverlay(theme) {
+    const overlay     = document.getElementById('lootbox-burst');
+    const nameEl      = document.getElementById('burst-reward-name');
+    const descEl      = document.getElementById('burst-reward-desc');
+    const iconEl      = document.getElementById('burst-reward-icon');
+    const particlesEl = document.getElementById('burst-particles');
+
+    if (!overlay) return;
+
+    if (nameEl) nameEl.textContent  = theme.name + ' Theme';
+    if (descEl) descEl.textContent  = theme.desc;
+    if (iconEl) iconEl.textContent  = theme.icon;
+
+    // Generate particles
+    if (particlesEl) {
+        particlesEl.innerHTML = '';
+        for (let i = 0; i < 22; i++) {
+            const p = document.createElement('div');
+            p.className = 'burst-particle';
+            const angle    = (i / 22) * 360;
+            const distance = 70 + Math.random() * 100;
+            p.style.setProperty('--angle',    angle + 'deg');
+            p.style.setProperty('--distance', distance + 'px');
+            p.style.animationDelay = (Math.random() * 0.15) + 's';
+            particlesEl.appendChild(p);
+        }
+    }
+
+    overlay.classList.add('show');
+
+    // Play a celebratory sound
+    playLootSound();
+
+    // Auto-dismiss after 3.5 seconds
+    setTimeout(() => closeLootBurstOverlay(), 3500);
+}
+
+function closeLootBurstOverlay() {
+    const overlay = document.getElementById('lootbox-burst');
+    if (overlay) overlay.classList.remove('show');
+}
+
+function playLootSound() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        // Bouncy major chord arpeggio
+        [659.25, 783.99, 1046.5, 1318.51].forEach((freq, i) => {
+            const osc  = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            const t = ctx.currentTime + i * 0.08;
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+            osc.start(t);
+            osc.stop(t + 0.4);
+        });
+    } catch (_) { /* non-critical */ }
+}
+
+// ─── Theme Application ────────────────────────────────────────
+
+/**
+ * Awards the theme, saves to inventory, applies it immediately,
+ * updates the UI, and syncs to Supabase.
+ */
+function awardTheme(theme) {
+    const inventory = getLootInventory();
+
+    // Add to collection if not already owned
+    if (!inventory.themes.includes(theme.id)) {
+        inventory.themes.push(theme.id);
+    }
+
+    // Equip immediately
+    inventory.activeTheme = theme.id;
+    saveLootInventory(inventory);
+
+    // Persist theme independently
+    localStorage.setItem('planos_active_theme', theme.id);
+
+    applyTheme(theme.id);
+    renderInventory();
+    syncInventoryToSupabase(inventory);
+}
+
+/**
+ * Applies a theme class to the body with a smooth CSS transition.
+ * Pass 'default' (or null) to clear all themes.
+ */
+function applyTheme(themeId) {
+    // Smooth fade-in via theme-transition class
+    document.body.classList.add('theme-transition');
+
+    // Strip all existing theme classes
+    LOOT_THEMES.forEach(t => document.body.classList.remove(t.cssClass));
+
+    // Apply requested theme
+    if (themeId && themeId !== 'default') {
+        const theme = LOOT_THEMES.find(t => t.id === themeId);
+        if (theme) document.body.classList.add(theme.cssClass);
+    }
+
+    // Remove transition helper after animation finishes
+    setTimeout(() => document.body.classList.remove('theme-transition'), 700);
+}
+
+/** Called in equipTheme chip click — saves & applies the chosen theme. */
+function equipTheme(themeId) {
+    const inventory = getLootInventory();
+    inventory.activeTheme = themeId;
+    saveLootInventory(inventory);
+
+    // Persist theme independently so it survives auth state changes
+    localStorage.setItem('planos_active_theme', themeId);
+
+    applyTheme(themeId);
+    renderInventory();
+    syncInventoryToSupabase(inventory);
+}
+
+// ─── localStorage Helpers ─────────────────────────────────────
+
+function getLootInventory() {
+    try {
+        const raw = localStorage.getItem('loot_inventory');
+        if (raw) return JSON.parse(raw);
+    } catch (_) { /* fallback below */ }
+    return { themes: [], activeTheme: null };
+}
+
+function saveLootInventory(inventory) {
+    localStorage.setItem('loot_inventory', JSON.stringify(inventory));
+}
+
+// ─── Inventory UI (sidebar) ───────────────────────────────────
+
+function renderInventory() {
+    const container = document.getElementById('inventory-themes');
+    if (!container) return;
+
+    const inventory = getLootInventory();
+    container.innerHTML = '';
+
+    // ── Default chip (always shown) ──
+    const isDefault = !inventory.activeTheme || inventory.activeTheme === 'default';
+    const defaultChip = document.createElement('div');
+    defaultChip.className = 'inventory-chip' + (isDefault ? ' active' : '');
+    defaultChip.innerHTML = '<span class="chip-icon">🔵</span><span class="chip-name">Default</span>';
+    defaultChip.onclick = () => equipTheme('default');
+    container.appendChild(defaultChip);
+
+    // ── All themes — unlocked OR locked ──
+    LOOT_THEMES.forEach(themeDef => {
+        const isOwned  = inventory.themes.includes(themeDef.id);
+        const isActive = inventory.activeTheme === themeDef.id;
+
+        const chip = document.createElement('div');
+
+        if (isOwned) {
+            chip.className = 'inventory-chip' + (isActive ? ' active' : '');
+            chip.innerHTML = `<span class="chip-icon">${themeDef.icon}</span><span class="chip-name">${themeDef.name}</span><span class="chip-rarity">${themeDef.rarity}</span>`;
+            chip.onclick = () => equipTheme(themeDef.id);
+            chip.title = `Equip ${themeDef.name} theme`;
+        } else {
+            chip.className = 'inventory-chip locked';
+            chip.innerHTML = `<span class="chip-icon">🔒</span><span class="chip-name">${themeDef.name}</span><span class="chip-rarity locked-rarity">${themeDef.rarity}</span>`;
+            chip.title = `Locked — complete timed tasks for a 20% drop chance!`;
+        }
+
+        container.appendChild(chip);
+    });
+}
+
+function toggleInventoryPanel() {
+    const body  = document.getElementById('inventory-body');
+    const arrow = document.getElementById('inventory-arrow');
+    if (!body) return;
+
+    const isOpen = body.classList.toggle('open');
+    if (arrow) arrow.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+}
+
+// ─── Supabase Sync (placeholder) ─────────────────────────────
+
+/**
+ * Placeholder: stores loot_inventory JSON in user_progress.
+ * For full Supabase Auth user_metadata sync, add a server-side
+ * function or use the Admin API (the anon key cannot write to
+ * auth.users.raw_user_meta_data directly).
+ * Add a `loot_inventory` JSONB column to user_progress to enable this.
+ */
+function syncInventoryToSupabase(inventory) {
+    if (!currentUser || !window.supabase) return;
+
+    window.supabase
+        .from('user_progress')
+        .update({ loot_inventory: inventory })
+        .eq('user_id', currentUser.id)
+        .then(({ error }) => {
+            if (error) {
+                console.warn('[PLANOS] Could not sync loot inventory to Supabase (column may not exist yet):', error.message);
+            } else {
+                console.log('[PLANOS] Loot inventory synced to Supabase.');
+            }
+        });
+}
+
+// ─── Init: restore saved theme on page load ───────────────────
+
+/**
+ * Reads the active theme from localStorage and re-applies it
+ * immediately (no transition flicker on page load).
+ * Uses a dedicated key 'planos_active_theme' so the theme
+ * survives logout / login cycles regardless of loot_inventory state.
+ */
+function restoreSavedTheme() {
+    // Primary source: dedicated theme key (most reliable across login cycles)
+    const savedThemeId = localStorage.getItem('planos_active_theme');
+
+    // Fallback: read from loot_inventory for backwards compatibility
+    const inventory = getLootInventory();
+    const themeId = savedThemeId || inventory.activeTheme;
+
+    LOOT_THEMES.forEach(t => document.body.classList.remove(t.cssClass));
+
+    if (themeId && themeId !== 'default') {
+        const theme = LOOT_THEMES.find(t => t.id === themeId);
+        if (theme) document.body.classList.add(theme.cssClass);
+    }
+}
+
