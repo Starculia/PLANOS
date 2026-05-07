@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PLANOS — Admin Panel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #060612;
+            color: rgba(230, 235, 254, 0.9);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        h1 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.85rem;
+            color: #a78bfa;
+            margin-bottom: 0.3rem;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .admin-badge {
+            font-size: 0.6rem;
+            background: rgba(139, 92, 246, 0.2);
+            border: 1px solid rgba(139, 92, 246, 0.4);
+            border-radius: 6px;
+            padding: 0.3rem 0.7rem;
+            color: #c4b5fd;
+        }
+
+        .logout-btn {
+            background: rgba(248, 113, 113, 0.15);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+            color: #fca5a5;
+            border-radius: 8px;
+            padding: 0.4rem 0.9rem;
+            font-size: 0.72rem;
+            cursor: pointer;
+        }
+
+        .logout-btn:hover {
+            background: rgba(248, 113, 113, 0.25);
+        }
+
+        /* Login screen */
+        #login-screen {
+            max-width: 380px;
+            margin: 5rem auto;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 2rem;
+        }
+
+        #login-screen h2 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.75rem;
+            color: #a78bfa;
+            margin-bottom: 1.2rem;
+            text-align: center;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            margin-bottom: 1rem;
+        }
+
+        .field label {
+            font-size: 0.7rem;
+            color: rgba(230, 235, 254, 0.7);
+        }
+
+        .field input {
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 0.65rem 0.9rem;
+            color: #fff;
+            font-size: 0.8rem;
+            outline: none;
+        }
+
+        .field input:focus {
+            border-color: rgba(139, 92, 246, 0.7);
+        }
+
+        .login-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.6rem;
+            padding: 0.8rem;
+            cursor: pointer;
+            margin-top: 0.5rem;
+        }
+
+        .login-error {
+            color: #fca5a5;
+            font-size: 0.68rem;
+            text-align: center;
+            margin-top: 0.5rem;
+        }
+
+        /* Filter bar */
+        .filter-bar {
+            display: flex;
+            gap: 0.6rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 8px;
+            color: rgba(230, 235, 254, 0.7);
+            font-size: 0.7rem;
+            padding: 0.4rem 0.9rem;
+            cursor: pointer;
+        }
+
+        .filter-btn.active {
+            background: rgba(139, 92, 246, 0.2);
+            border-color: rgba(139, 92, 246, 0.5);
+            color: #c4b5fd;
+        }
+
+        #payment-count {
+            font-size: 0.7rem;
+            color: rgba(230, 235, 254, 0.5);
+            line-height: 2.2;
+        }
+
+        /* Payment cards */
+        #payments-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .payment-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            border-radius: 16px;
+            padding: 1.2rem 1.5rem;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 1rem;
+            align-items: start;
+            transition: border-color 0.2s;
+        }
+
+        .payment-card.pending {
+            border-color: rgba(251, 191, 36, 0.3);
+        }
+
+        .payment-card.approved {
+            border-color: rgba(52, 211, 153, 0.3);
+        }
+
+        .payment-card.rejected {
+            border-color: rgba(248, 113, 113, 0.25);
+            opacity: 0.65;
+        }
+
+        .card-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .card-row {
+            font-size: 0.72rem;
+            color: rgba(230, 235, 254, 0.6);
+        }
+
+        .card-row strong {
+            color: rgba(230, 235, 254, 1);
+        }
+
+        .status-chip {
+            display: inline-block;
+            font-size: 0.5rem;
+            font-family: 'Press Start 2P', cursive;
+            padding: 0.2rem 0.55rem;
+            border-radius: 5px;
+            text-transform: uppercase;
+            margin-left: 0.5rem;
+        }
+
+        .chip-pending {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+        }
+
+        .chip-approved {
+            background: rgba(52, 211, 153, 0.2);
+            color: #6ee7b7;
+        }
+
+        .chip-rejected {
+            background: rgba(248, 113, 113, 0.2);
+            color: #fca5a5;
+        }
+
+        .card-tier-pro {
+            color: #a78bfa;
+            font-weight: 600;
+        }
+
+        .card-tier-elite {
+            color: #fbbf24;
+            font-weight: 600;
+        }
+
+        .card-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .btn-approve {
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem 1.1rem;
+            font-size: 0.68rem;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .btn-reject {
+            background: rgba(248, 113, 113, 0.15);
+            border: 1px solid rgba(248, 113, 113, 0.35);
+            color: #fca5a5;
+            border-radius: 8px;
+            padding: 0.5rem 1.1rem;
+            font-size: 0.68rem;
+            cursor: pointer;
+        }
+
+        .btn-approve:hover {
+            filter: brightness(1.1);
+        }
+
+        .btn-reject:hover {
+            background: rgba(248, 113, 113, 0.25);
+        }
+
+        .btn-approve:disabled,
+        .btn-reject:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .receipt-link {
+            color: #a78bfa;
+            font-size: 0.67rem;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: rgba(230, 235, 254, 0.35);
+            font-size: 0.75rem;
+        }
+
+        .loading-msg {
+            color: rgba(230, 235, 254, 0.4);
+            font-size: 0.72rem;
+            padding: 2rem;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="login-screen" style="display:none">
+        <h2>Admin Login</h2>
+        <div class="field"><label>Email</label><input type="email" id="admin-email"
+                placeholder="PlanosPlanMaker@gmail.com" /></div>
+        <div class="field"><label>Password</label><input type="password" id="admin-password" placeholder="••••••••" />
+        </div>
+        <button class="login-btn" onclick="adminLogin()">🔐 Login</button>
+        <p class="login-error" id="login-error" style="display:none"></p>
+    </div>
+
+    <div id="admin-panel" style="display:none">
+        <div class="header">
+            <div>
+                <h1>⚡ PLANOS Admin</h1>
+                <p style="font-size:0.7rem;color:rgba(230,235,254,0.45);margin-top:0.3rem">Payment Management Dashboard
+                </p>
+            </div>
+            <div class="header-right">
+                <span class="admin-badge" id="admin-name-badge">Admin</span>
+                <button class="logout-btn" onclick="adminLogout()">Logout</button>
+            </div>
+        </div>
+
+        <div class="filter-bar">
+            <button class="filter-btn active" onclick="filterPayments('all', this)">All</button>
+            <button class="filter-btn" onclick="filterPayments('pending', this)">⏳ Pending</button>
+            <button class="filter-btn" onclick="filterPayments('approved', this)">✅ Approved</button>
+            <button class="filter-btn" onclick="filterPayments('rejected', this)">❌ Rejected</button>
+            <button class="filter-btn" onclick="loadPayments()">🔄 Refresh</button>
+            <span id="payment-count"></span>
+        </div>
+
+        <div id="payments-container">
+            <p class="loading-msg">Loading payments…</p>
+        </div>
+    </div>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const SUPABASE_URL = 'https://fwgjphiegsppfvbpoxwi.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ3Z2pwaGllZ3NwcGZ2YnBveHdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1NjkzNDYsImV4cCI6MjA4NzE0NTM0Nn0.6KpbC7QP9p1uEYndZzf_2cgbeATGUiTxLjjvr8fvY8A';
+        const ADMIN_EMAIL = 'PlanosPlanMaker@gmail.com';
+
+        const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        let allPayments = [];
+        let currentFilter = 'all';
+
+        // ── Init ──────────────────────────────────────────────────────
+        async function init() {
+            const { data: { session } } = await sb.auth.getSession();
+            if (session?.user?.email === ADMIN_EMAIL) {
+                showPanel(session.user);
+            } else {
+                document.getElementById('login-screen').style.display = 'block';
+            }
+        }
+
+        // ── Login ─────────────────────────────────────────────────────
+        async function adminLogin() {
+            const email = document.getElementById('admin-email').value.trim();
+            const password = document.getElementById('admin-password').value;
+            const errEl = document.getElementById('login-error');
+
+            if (email !== ADMIN_EMAIL) {
+                errEl.textContent = 'Access denied — admin only.';
+                errEl.style.display = 'block';
+                return;
+            }
+
+            const { data, error } = await sb.auth.signInWithPassword({ email, password });
+            if (error) {
+                errEl.textContent = error.message;
+                errEl.style.display = 'block';
+                return;
+            }
+            showPanel(data.user);
+        }
+
+        function showPanel(user) {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('admin-panel').style.display = 'block';
+            document.getElementById('admin-name-badge').textContent = user.email;
+            loadPayments();
+            // Realtime for new submissions
+            sb.channel('admin-payments').on('postgres_changes',
+                { event: '*', schema: 'public', table: 'payments' },
+                () => loadPayments()
+            ).subscribe();
+        }
+
+        async function adminLogout() {
+            await sb.auth.signOut();
+            location.reload();
+        }
+
+        // ── Load Payments ─────────────────────────────────────────────
+        async function loadPayments() {
+            const container = document.getElementById('payments-container');
+            container.innerHTML = '<p class="loading-msg">Loading payments…</p>';
+
+            const { data, error } = await sb.from('payments')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                container.innerHTML = `<p class="loading-msg" style="color:#fca5a5">Error: ${error.message}</p>`;
+                return;
+            }
+            allPayments = data || [];
+            renderPayments();
+            highlightPaymentFromUrl();
+        }
+
+        function filterPayments(status, btn) {
+            currentFilter = status;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            renderPayments();
+        }
+
+        function renderPayments() {
+            const container = document.getElementById('payments-container');
+            const countEl = document.getElementById('payment-count');
+
+            const filtered = currentFilter === 'all'
+                ? allPayments
+                : allPayments.filter(p => p.status === currentFilter);
+
+            countEl.textContent = `${filtered.length} record${filtered.length !== 1 ? 's' : ''}`;
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="empty-state">No payments found here.</div>';
+                return;
+            }
+
+            container.innerHTML = filtered.map(p => {
+                const date = new Date(p.created_at).toLocaleString('id-ID');
+                const tierCls = p.tier === 'Elite' ? 'card-tier-elite' : 'card-tier-pro';
+                const chipCls = `chip-${p.status}`;
+                const isPending = p.status === 'pending';
+
+                const receiptHtml = p.receipt_url
+                    ? `<div class="card-row">📸 <a class="receipt-link" href="${p.receipt_url}" target="_blank">View Receipt</a></div>`
+                    : '<div class="card-row" style="color:rgba(230,235,254,0.3)">No screenshot uploaded</div>';
+
+                return `
+        <div class="payment-card ${p.status}" id="card-${p.id}">
+            <div class="card-info">
+                <div class="card-row">
+                    <strong>${esc(p.username || 'Unknown')}</strong>
+                    <span class="status-chip ${chipCls}">${p.status}</span>
+                </div>
+                <div class="card-row">📧 ${esc(p.email || '—')}</div>
+                <div class="card-row">Tier: <span class="${tierCls}"><strong>${p.tier}</strong></span> &nbsp;|&nbsp; 💰 Rp ${Number(p.amount).toLocaleString('id-ID')}</div>
+                <div class="card-row">🔖 TXN ID: <strong>${esc(p.transaction_id || '—')}</strong></div>
+                ${receiptHtml}
+                <div class="card-row" style="color:rgba(230,235,254,0.35)">📅 ${date}</div>
+                ${p.admin_notes ? `<div class="card-row">📝 Notes: ${esc(p.admin_notes)}</div>` : ''}
+            </div>
+            <div class="card-actions">
+                ${isPending ? `
+                <button class="btn-approve" id="approve-${p.id}" onclick="approvePayment('${p.id}','${p.tier}','${p.user_id}')">✅ Approve</button>
+                <button class="btn-reject"  id="reject-${p.id}"  onclick="rejectPayment('${p.id}')">❌ Reject</button>
+                ` : `<span style="font-size:0.65rem;color:rgba(230,235,254,0.35)">Reviewed</span>`}
+            </div>
+        </div>`;
+            }).join('');
+        }
+
+        function esc(str) {
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        // ── Approve ───────────────────────────────────────────────────
+        async function approvePayment(paymentId, tier, userId) {
+            const aBtn = document.getElementById(`approve-${paymentId}`);
+            const rBtn = document.getElementById(`reject-${paymentId}`);
+            if (aBtn) { aBtn.disabled = true; aBtn.textContent = '⏳'; }
+            if (rBtn) rBtn.disabled = true;
+
+            try {
+                // 1. Build profile update
+                const profileUpdate = { tier };
+                if (tier === 'Elite') {
+                    profileUpdate.unlocked_themes = ['Default', 'cyberpunk', 'matrix', 'gold'];
+                }
+
+                // 2. Update profiles table
+                const { error: profileErr } = await sb.from('profiles')
+                    .update(profileUpdate)
+                    .eq('id', userId);
+                if (profileErr) throw profileErr;
+
+                // 3. Mark payment as approved
+                const { error: payErr } = await sb.from('payments')
+                    .update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: ADMIN_EMAIL })
+                    .eq('id', paymentId);
+                if (payErr) throw payErr;
+
+                // 4. Refresh local list
+                await loadPayments();
+
+            } catch (err) {
+                alert('Error: ' + err.message);
+                if (aBtn) { aBtn.disabled = false; aBtn.textContent = '✅ Approve'; }
+                if (rBtn) rBtn.disabled = false;
+            }
+        }
+
+        // ── Reject ────────────────────────────────────────────────────
+        async function rejectPayment(paymentId) {
+            const notes = prompt('Rejection reason (optional):') ?? '';
+            const rBtn = document.getElementById(`reject-${paymentId}`);
+            const aBtn = document.getElementById(`approve-${paymentId}`);
+            if (rBtn) { rBtn.disabled = true; rBtn.textContent = '⏳'; }
+            if (aBtn) aBtn.disabled = true;
+
+            const { error } = await sb.from('payments')
+                .update({
+                    status: 'rejected',
+                    admin_notes: notes,
+                    reviewed_at: new Date().toISOString(),
+                    reviewed_by: ADMIN_EMAIL
+                })
+                .eq('id', paymentId);
+
+            if (error) {
+                alert('Error: ' + error.message);
+                if (rBtn) { rBtn.disabled = false; rBtn.textContent = '❌ Reject'; }
+                if (aBtn) aBtn.disabled = false;
+            } else {
+                await loadPayments();
+            }
+        }
+
+        init();
+
+        // ── Deep-link: ?payment=ID from email approve link ────────────
+        function highlightPaymentFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const targetId = params.get('payment');
+            if (!targetId) return;
+
+            // Poll until the card renders, then scroll + flash it
+            const poll = setInterval(() => {
+                const card = document.getElementById(`card-${targetId}`);
+                if (!card) return;
+                clearInterval(poll);
+
+                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                card.style.transition = 'box-shadow 0.4s ease, border-color 0.4s ease';
+                card.style.borderColor = 'rgba(251,191,36,0.9)';
+                card.style.boxShadow = '0 0 0 3px rgba(251,191,36,0.35)';
+
+                // Flash twice then return to normal
+                let count = 0;
+                const flash = setInterval(() => {
+                    card.style.opacity = count % 2 === 0 ? '0.5' : '1';
+                    if (++count > 5) {
+                        clearInterval(flash);
+                        card.style.opacity = '1';
+                        card.style.boxShadow = '0 0 0 3px rgba(251,191,36,0.2)';
+                    }
+                }, 350);
+            }, 300);
+        }
+    </script>
+</body>
+
+</html>

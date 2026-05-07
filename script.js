@@ -315,6 +315,11 @@ function initializeAuth() {
                 currentUser = session?.user || null;
                 updateAuthUI(currentUser);
                 console.log('[PLANOS] Auth state initialized:', currentUser ? 'Logged in' : 'Logged out');
+                if (currentUser) {
+                    loadUserDataFromSupabase();
+                    loadUserTier();
+                }
+                fetchUserTracks();
             });
 
             // Listen for auth changes
@@ -326,6 +331,9 @@ function initializeAuth() {
                 if (event === 'SIGNED_IN' && currentUser) {
                     // Load user-specific data from Supabase
                     loadUserDataFromSupabase();
+                    loadUserTier();
+                    subscribeToPaymentUpdates();
+                    fetchUserTracks();
                     showAuthNotification('🎉 Welcome Back!', 'You are now logged in as ' + (currentUser.user_metadata?.username || 'User'), 'success');
                 } else if (event === 'SIGNED_OUT') {
                     // Clear local data and show empty state
@@ -333,6 +341,7 @@ function initializeAuth() {
                     localStorage.removeItem('points');
                     localStorage.removeItem('achievements');
                     clearTaskDisplay();
+                    fetchUserTracks();
                     showAuthNotification('👋 Logged Out', 'You have been successfully logged out.', 'info');
                 }
             });
@@ -433,19 +442,25 @@ let audio = null;
 let isPlaying = false;
 let currentTrackIndex = 0;
 let currentUser = null;
+let userTier = 'Free';          // 'Free' | 'Pro' | 'Elite'
+let userUnlockedThemes = ['Default']; // synced from Supabase profiles
 let timerTickInterval = null;
 
 // --- Playlist ---
-const playlist = [
+const defaultPlaylist = [
     { title: "Feels Like Yesterday", src: "audios/Feels Like Yesterday.mp3" },
     { title: "Deep Focus", src: "audios/Fret Fade.mp3" },
-    { title: "Night Work", src: " //coming soon" }
+    { title: "Inspiring Focus", src: "audios/Inspiring Focus.mp3" }
 ];
+let allTracks = [...defaultPlaylist];
 
 function loadTrack(index) {
     if (!audio) return;
+    
+    // Safety bounds
+    if (index < 0 || index >= allTracks.length) return;
 
-    audio.src = playlist[index].src;
+    audio.src = allTracks[index].src;
     audio.load();
 
     // Update dropdown to reflect current track
@@ -555,12 +570,14 @@ function switchTab(tabName) {
     if (tabContent) tabContent.classList.add('active');
 
     const buttons = document.querySelectorAll('.nav-btn');
-    const tabMap = { 'create': 0, 'ongoing': 1, 'finished': 2, 'planning': 3, 'badges': 4, 'leaderboard': 5, 'about': 6 };
+    const tabMap = { 'create': 0, 'ongoing': 1, 'finished': 2, 'planning': 3, 'badges': 4, 'leaderboard': 5, 'global-rankings': 6, 'pricing': 7, 'about': 8 };
     const btnIndex = tabMap[tabName];
     if (btnIndex !== undefined && buttons[btnIndex]) buttons[btnIndex].classList.add('active');
 
     if (tabName === 'badges') displayAllBadges();
-    if (tabName === 'leaderboard') renderLeaderboard();
+    if (tabName === 'leaderboard') { renderLeaderboard(); applyPremiumGating(); }
+    if (tabName === 'global-rankings') { renderGlobalLeaderboard(); applyPremiumGating(); }
+    if (tabName === 'pricing') updatePricingUI();
 }
 
 // --- Animated background ---
@@ -655,6 +672,9 @@ function tickTimers() {
                         ? `+${earnedPoints} pts (${tierInfo.tier} Tier ${tierInfo.emoji} ${tierInfo.label})`
                         : 'No points (no timer was set)';
                     showTimerCompleteNotification(task.title, pointLine);
+
+                    // Lootbox fires ONLY on auto-complete (timer reaches zero)
+                    rollLootDrop(task);
                 }
             }
         });
@@ -1088,6 +1108,7 @@ async function renderLeaderboard() {
             const { data, error } = await window.supabase
                 .from('leaderboard')
                 .select('task_title, username, points, duration_minutes, tier, created_at')
+                .eq('user_id', currentUser.id)
                 .order('points', { ascending: false })
                 .limit(50); // fetch enough to fill all 3 tiers
 
@@ -1274,8 +1295,17 @@ function createTask() {
     switchTab('ongoing');
 }
 
-function addTask(title, description, status, durationMinutes = 0, category = 'Normal') {
+function addTask(title, description, requestedStatus, durationMinutes = 0, category = 'Normal') {
     const tasks = loadTasks();
+    let status = requestedStatus;
+
+    if (status === 'ongoing') {
+        const hasOngoing = tasks.some(t => t.status === 'ongoing');
+        if (hasOngoing) {
+            status = 'pending';
+            showAuthNotification('⏸️ Task Pending', 'You are currently focusing on another task. Finish it first!', 'info');
+        }
+    }
 
     // Generate UUID for Supabase compatibility
     const taskId = crypto.randomUUID();
@@ -1361,9 +1391,10 @@ function markAsFinished(taskId) {
         showEarlyFinishNotification(task.title);
         playNotificationSound('complete');
         updateTaskDisplay();
+        checkNextPendingTask();
 
-        // ── Loot Box drop (only for tasks ≥ 1 minute) ──
-        rollLootDrop(task);
+        // ── Loot Box: moved to tickTimers() — only fires on auto-complete ──
+        // rollLootDrop(task);  ← intentionally disabled here
     }
 }
 
@@ -1391,12 +1422,81 @@ function checkLevelUp(newPoints, oldPoints) {
     }
 }
 
+// ─────────────────────────────────────────────
+// SINGLE-TASK FOCUS & TRANSITIONS
+// ─────────────────────────────────────────────
+
+let currentTransitionTaskId = null;
+
+function startPendingTask(taskId) {
+    const tasks = loadTasks();
+    const hasOngoing = tasks.some(t => t.status === 'ongoing');
+
+    if (hasOngoing) {
+        showAuthNotification('⏸️ Focus Required', 'You are currently focusing on another task. Finish it first!', 'warning');
+        return;
+    }
+
+    const taskIndex = tasks.findIndex(t => t.id === taskId);
+    if (taskIndex !== -1) {
+        const task = tasks[taskIndex];
+        task.status = 'ongoing';
+        task.end_time = task.duration_minutes > 0 ? new Date(Date.now() + task.duration_minutes * 60000).toISOString() : null;
+        localStorage.setItem('tasks', JSON.stringify(tasks));
+
+        if (currentUser && window.supabase) {
+            window.supabase.from('tasks')
+                .update({ status: 'ongoing', end_time: task.end_time })
+                .eq('id', taskId)
+                .eq('user_id', currentUser.id)
+                .then(({ error }) => {
+                    if (error) console.error('[PLANOS] Error starting pending task in Supabase:', error);
+                });
+        }
+
+        playNotificationSound('add');
+        updateTaskDisplay();
+
+        // Auto-play music if loaded
+        if (audio && audio.src && audio.paused) {
+            audio.play().catch(() => {});
+            isPlaying = true;
+            const playBtn = document.getElementById('play-pause-btn');
+            if (playBtn) playBtn.textContent = '⏸';
+        }
+    }
+}
+
+function checkNextPendingTask() {
+    const tasks = loadTasks();
+    const nextTask = tasks.find(t => t.status === 'pending');
+
+    if (nextTask) {
+        currentTransitionTaskId = nextTask.id;
+        document.getElementById('transition-next-task-name').textContent = nextTask.title;
+        document.getElementById('transition-modal').style.display = 'flex';
+    }
+}
+
+function acceptTransition() {
+    document.getElementById('transition-modal').style.display = 'none';
+    if (currentTransitionTaskId) {
+        startPendingTask(currentTransitionTaskId);
+        currentTransitionTaskId = null;
+    }
+}
+
+function declineTransition() {
+    document.getElementById('transition-modal').style.display = 'none';
+    currentTransitionTaskId = null;
+}
+
 /** Opens the pixel-art Level Up Modal and populates it with the new level number. */
 function showLevelUpModal(level) {
-    const modal    = document.getElementById('levelup-modal');
-    const numEl    = document.getElementById('levelup-number');
-    const msgEl    = document.getElementById('levelup-message');
-    const badgeEl  = document.getElementById('levelup-badge');
+    const modal = document.getElementById('levelup-modal');
+    const numEl = document.getElementById('levelup-number');
+    const msgEl = document.getElementById('levelup-message');
+    const badgeEl = document.getElementById('levelup-badge');
 
     if (!modal) return;
 
@@ -1406,12 +1506,12 @@ function showLevelUpModal(level) {
     // ── Badge label: show rank icon + "LV" ──
     if (badgeEl) {
         const rankIcons = [
-            { threshold: 0,   icon: '🌱' },
-            { threshold: 2,   icon: '⚔️' },
-            { threshold: 5,   icon: '🛡️' },
-            { threshold: 10,  icon: '🏹' },
-            { threshold: 25,  icon: '🔥' },
-            { threshold: 50,  icon: '💎' },
+            { threshold: 0, icon: '🌱' },
+            { threshold: 2, icon: '⚔️' },
+            { threshold: 5, icon: '🛡️' },
+            { threshold: 10, icon: '🏹' },
+            { threshold: 25, icon: '🔥' },
+            { threshold: 50, icon: '💎' },
             { threshold: 100, icon: '👑' },
         ];
         let icon = rankIcons[0].icon;
@@ -1445,17 +1545,17 @@ function closeLevelUpModal() {
 
 /** Returns retro flavour text based on the new level. */
 function getLevelUpFlavourText(level) {
-    if (level === 1)   return 'First level cleared!';
-    if (level === 2)   return 'Getting started...';
-    if (level < 5)     return 'Apprentice rising!';
-    if (level === 5)   return 'Task Handler!';
-    if (level < 10)    return 'Building momentum...';
-    if (level === 10)  return 'Consistency Builder!';
-    if (level < 25)    return 'On a roll! Keep going!';
-    if (level === 25)  return 'Productivity Mindset!';
-    if (level < 50)    return 'Unstoppable force!';
-    if (level === 50)  return 'Workflow Architect!';
-    if (level < 100)   return 'Elite Planner status!';
+    if (level === 1) return 'First level cleared!';
+    if (level === 2) return 'Getting started...';
+    if (level < 5) return 'Apprentice rising!';
+    if (level === 5) return 'Task Handler!';
+    if (level < 10) return 'Building momentum...';
+    if (level === 10) return 'Consistency Builder!';
+    if (level < 25) return 'On a roll! Keep going!';
+    if (level === 25) return 'Productivity Mindset!';
+    if (level < 50) return 'Unstoppable force!';
+    if (level === 50) return 'Workflow Architect!';
+    if (level < 100) return 'Elite Planner status!';
     if (level === 100) return 'EXECUTION MASTER! 👑';
     return `Level ${level} — Legendary!`;
 }
@@ -1467,7 +1567,7 @@ function playLevelUpSound() {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         // C5  E5  G5  C6  E6 — triumphant arpeggio
         [523.25, 659.25, 783.99, 1046.50, 1318.51].forEach((freq, i) => {
-            const osc  = ctx.createOscillator();
+            const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.connect(gain);
             gain.connect(ctx.destination);
@@ -1647,12 +1747,12 @@ function updateTaskDisplay() {
     const ongoingListAlt = ongoingList || document.getElementById('ongoing-task');
     const finishedListAlt = finishedList || document.getElementById('finished-task');
 
-    const ongoingTasks = tasks.filter(task => task.status === 'ongoing');
+    const ongoingTasks = tasks.filter(task => task.status === 'ongoing' || task.status === 'pending');
     const finishedTasks = tasks.filter(task => task.status === 'finished');
 
     if (ongoingListAlt) ongoingListAlt.querySelector('.task-list, ul') ?
-        ongoingListAlt.querySelector('.task-list, ul').innerHTML = ongoingTasks.length > 0 ? '' : '<li class="empty-state">No ongoing tasks yet</li>' :
-        ongoingListAlt.innerHTML = ongoingTasks.length > 0 ? '' : '<li class="empty-state">No ongoing tasks yet</li>';
+        ongoingListAlt.querySelector('.task-list, ul').innerHTML = ongoingTasks.length > 0 ? '' : '<li class="empty-state">No ongoing or pending tasks yet</li>' :
+        ongoingListAlt.innerHTML = ongoingTasks.length > 0 ? '' : '<li class="empty-state">No ongoing or pending tasks yet</li>';
 
     if (finishedListAlt) finishedListAlt.querySelector('.task-list, ul') ?
         finishedListAlt.querySelector('.task-list, ul').innerHTML = finishedTasks.length > 0 ? '' : '<li class="empty-state">No finished tasks yet</li>' :
@@ -1728,7 +1828,10 @@ function createTaskElement(task) {
             ${task.status === 'ongoing'
             ? `<button class="btn-small btn-success" onclick="markAsFinished('${task.id}')">Finish Early</button>
                <button class="btn-small btn-danger" onclick="deleteTask('${task.id}')">Delete</button>`
-            : `<button class="btn-small btn-secondary" onclick="deleteTask('${task.id}')">Delete</button>`}
+            : task.status === 'pending'
+                ? `<button class="btn-small btn-success" onclick="startPendingTask('${task.id}')">▶ Start Focus</button>
+               <button class="btn-small btn-danger" onclick="deleteTask('${task.id}')">Delete</button>`
+                : `<button class="btn-small btn-secondary" onclick="deleteTask('${task.id}')">Delete</button>`}
         </div>
         ${task.status === 'ongoing' && task.end_time ? '<div class="no-points-hint">💡 Let the timer run to earn tier points</div>' : ''}
     `;
@@ -1822,23 +1925,23 @@ function updatePointsAndLevel() {
     ensurePointsDisplayExists();
 
     const pointsDisplay = document.getElementById('pointsDisplay');
-    const levelDisplay  = document.getElementById('level-display');
-    const levelTitle    = document.getElementById('level-title');
-    const progressBar   = document.getElementById('level-progress');
-    const ringCircle    = document.getElementById('ring-xp-circle');
-    const rankIcon      = document.getElementById('level-rank-icon');
+    const levelDisplay = document.getElementById('level-display');
+    const levelTitle = document.getElementById('level-title');
+    const progressBar = document.getElementById('level-progress');
+    const ringCircle = document.getElementById('ring-xp-circle');
+    const rankIcon = document.getElementById('level-rank-icon');
 
-    let level    = 0;
+    let level = 0;
     let required = 100;
-    let total    = 0;
+    let total = 0;
 
     while (points >= total + required) {
-        total    += required;
+        total += required;
         required += 20;
         level++;
     }
 
-    const currentXP      = points - total;
+    const currentXP = points - total;
     const progressPercent = (currentXP / required) * 100;
 
     // ── Number & title ──
@@ -1867,12 +1970,12 @@ function updatePointsAndLevel() {
     // ── Rank icon based on level ──
     if (rankIcon) {
         const rankIcons = [
-            { threshold: 0,   icon: '🌱' },
-            { threshold: 2,   icon: '⚔️' },
-            { threshold: 5,   icon: '🛡️' },
-            { threshold: 10,  icon: '🏹' },
-            { threshold: 25,  icon: '🔥' },
-            { threshold: 50,  icon: '💎' },
+            { threshold: 0, icon: '🌱' },
+            { threshold: 2, icon: '⚔️' },
+            { threshold: 5, icon: '🛡️' },
+            { threshold: 10, icon: '🏹' },
+            { threshold: 25, icon: '🔥' },
+            { threshold: 50, icon: '💎' },
             { threshold: 100, icon: '👑' },
         ];
         let chosenIcon = rankIcons[0].icon;
@@ -2012,6 +2115,8 @@ document.addEventListener('DOMContentLoaded', function () {
     displayPlans();
     restoreSavedTheme();
     renderInventory();
+    applyPremiumGating();
+    updatePricingUI();
 
     audio = document.getElementById('audio-player');
     if (audio) {
@@ -2063,7 +2168,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 function nextTrack(autoPlay = false) {
-    currentTrackIndex = (currentTrackIndex + 1) % playlist.length;
+    currentTrackIndex = (currentTrackIndex + 1) % allTracks.length;
     loadTrack(currentTrackIndex);
     // Auto-play if requested or if currently playing
     if (autoPlay || isPlaying) {
@@ -2075,7 +2180,7 @@ function nextTrack(autoPlay = false) {
 
 function prevTrack() {
     currentTrackIndex =
-        (currentTrackIndex - 1 + playlist.length) % playlist.length;
+        (currentTrackIndex - 1 + allTracks.length) % allTracks.length;
     loadTrack(currentTrackIndex);
     // Auto-play if currently playing
     if (isPlaying) {
@@ -2467,26 +2572,30 @@ function getLockedTheme() {
 }
 
 /**
- * Called from markAsFinished.
+ * Called from tickTimers() on auto-complete ONLY (not manual finish).
  * Rules:
  *   - Task must have been created with >= 1 minute duration.
- *   - At least one theme must still be locked.
- *   - 20% random chance.
+ *   - Elite users bypass — they already own all themes.
+ *   - Free: 20% chance | Pro: 35% chance | Elite: skip.
  * @param {object} task  The completed task object.
  */
 function rollLootDrop(task) {
     // Gate 1: task must be a timed task (>= 1 minute)
     if (!task || (task.duration_minutes || 0) < 1) return;
 
-    // Gate 2: must have at least one theme still locked
+    // Gate 2: Elite users skip lootbox — they already own everything
+    if (userTier === 'Elite') return;
+
+    // Gate 3: must have at least one theme still locked
     const lockedTheme = getLockedTheme();
     if (!lockedTheme) {
         console.log('[PLANOS] All themes unlocked — no loot drop possible.');
         return;
     }
 
-    // Gate 3: 20% chance
-    if (Math.random() < 0.20) {
+    // Gate 3: tier-aware drop chance
+    const dropChance = userTier === 'Pro' ? 0.35 : 0.20; // Elite bypassed above
+    if (Math.random() < dropChance) {
         _pendingLootTheme = lockedTheme;
         showLootDropWidget();
     }
@@ -2530,17 +2639,17 @@ function openLootBox() {
 // ─── Burst Overlay ────────────────────────────────────────────
 
 function showLootBurstOverlay(theme) {
-    const overlay     = document.getElementById('lootbox-burst');
-    const nameEl      = document.getElementById('burst-reward-name');
-    const descEl      = document.getElementById('burst-reward-desc');
-    const iconEl      = document.getElementById('burst-reward-icon');
+    const overlay = document.getElementById('lootbox-burst');
+    const nameEl = document.getElementById('burst-reward-name');
+    const descEl = document.getElementById('burst-reward-desc');
+    const iconEl = document.getElementById('burst-reward-icon');
     const particlesEl = document.getElementById('burst-particles');
 
     if (!overlay) return;
 
-    if (nameEl) nameEl.textContent  = theme.name + ' Theme';
-    if (descEl) descEl.textContent  = theme.desc;
-    if (iconEl) iconEl.textContent  = theme.icon;
+    if (nameEl) nameEl.textContent = theme.name + ' Theme';
+    if (descEl) descEl.textContent = theme.desc;
+    if (iconEl) iconEl.textContent = theme.icon;
 
     // Generate particles
     if (particlesEl) {
@@ -2548,9 +2657,9 @@ function showLootBurstOverlay(theme) {
         for (let i = 0; i < 22; i++) {
             const p = document.createElement('div');
             p.className = 'burst-particle';
-            const angle    = (i / 22) * 360;
+            const angle = (i / 22) * 360;
             const distance = 70 + Math.random() * 100;
-            p.style.setProperty('--angle',    angle + 'deg');
+            p.style.setProperty('--angle', angle + 'deg');
             p.style.setProperty('--distance', distance + 'px');
             p.style.animationDelay = (Math.random() * 0.15) + 's';
             particlesEl.appendChild(p);
@@ -2576,7 +2685,7 @@ function playLootSound() {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         // Bouncy major chord arpeggio
         [659.25, 783.99, 1046.5, 1318.51].forEach((freq, i) => {
-            const osc  = ctx.createOscillator();
+            const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.connect(gain);
             gain.connect(ctx.destination);
@@ -2685,7 +2794,7 @@ function renderInventory() {
 
     // ── All themes — unlocked OR locked ──
     LOOT_THEMES.forEach(themeDef => {
-        const isOwned  = inventory.themes.includes(themeDef.id);
+        const isOwned = inventory.themes.includes(themeDef.id);
         const isActive = inventory.activeTheme === themeDef.id;
 
         const chip = document.createElement('div');
@@ -2706,7 +2815,7 @@ function renderInventory() {
 }
 
 function toggleInventoryPanel() {
-    const body  = document.getElementById('inventory-body');
+    const body = document.getElementById('inventory-body');
     const arrow = document.getElementById('inventory-arrow');
     if (!body) return;
 
@@ -2763,3 +2872,671 @@ function restoreSavedTheme() {
     }
 }
 
+
+// ============================================================
+// PLANOS — NEW FEATURE FUNCTIONS
+// Tier System, Global Rankings, Pricing, Premium Gating
+// ============================================================
+
+// ─── Load User Tier from Supabase ────────────────────────────
+
+async function loadUserTier() {
+    if (!currentUser || !window.supabase) return;
+
+    try {
+        const { data, error } = await window.supabase
+            .from('profiles')
+            .select('tier, unlocked_themes')
+            .eq('id', currentUser.id)
+            .single();
+
+        if (error) throw error;
+
+        if (data) {
+            userTier = data.tier || 'Free';
+            userUnlockedThemes = data.unlocked_themes || ['Default'];
+
+            // Sync unlocked themes into local inventory
+            const inventory = getLootInventory();
+            const merged = [...new Set([...inventory.themes, ...userUnlockedThemes.filter(t => t !== 'Default')])];
+            inventory.themes = merged;
+
+            // If Elite, grant all themes automatically
+            if (userTier === 'Elite') {
+                inventory.themes = LOOT_THEMES.map(t => t.id);
+            }
+
+            saveLootInventory(inventory);
+            renderInventory();
+
+            console.log(`[PLANOS] Tier loaded: ${userTier}`, userUnlockedThemes);
+            updatePricingUI();
+            applyPremiumGating();
+        }
+    } catch (err) {
+        console.warn('[PLANOS] Could not load tier from Supabase:', err.message);
+    }
+}
+
+// ─── Premium Gating ──────────────────────────────────────────
+
+function applyPremiumGating() {
+    const isFree = userTier === 'Free';
+
+    // Task Tracker lock
+    const ttLock = document.getElementById('task-tracker-lock');
+    if (ttLock) ttLock.style.display = isFree ? 'flex' : 'none';
+}
+
+// ─── Global Rankings ─────────────────────────────────────────
+
+async function renderGlobalLeaderboard() {
+    const container = document.getElementById('global-rankings-list');
+    if (!container) return;
+
+    // Free users see the lock overlay — still load data but it's hidden
+    container.innerHTML = '<div class="leaderboard-empty">Loading rankings...</div>';
+
+    if (!currentUser || !window.supabase) {
+        container.innerHTML = '<div class="leaderboard-empty">Please log in to view Global Rankings.</div>';
+        return;
+    }
+
+    try {
+        const { data, error } = await window.supabase
+            .from('user_progress')
+            .select('user_id, points, level')
+            .order('level', { ascending: false })
+            .order('points', { ascending: false })
+            .limit(10);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div class="leaderboard-empty">No players yet. Be the first to level up!</div>';
+            return;
+        }
+
+        // Fetch usernames for those user_ids
+        const userIds = data.map(r => r.user_id);
+        const { data: profiles } = await window.supabase
+            .from('profiles')
+            .select('id, username, tier')
+            .in('id', userIds);
+
+        const profileMap = {};
+        (profiles || []).forEach(p => { profileMap[p.id] = p; });
+
+        const rankMedals = ['🥇', '🥈', '🥉'];
+        const rankClasses = ['rank-1', 'rank-2', 'rank-3'];
+
+        container.innerHTML = data.map((row, i) => {
+            const profile = profileMap[row.user_id] || {};
+            const username = escapeHtml(profile.username || 'Anonymous');
+            const tier = profile.tier || 'Free';
+            const tierPill = `<span class="ranking-tier-pill pill-${tier.toLowerCase()}">${tier}</span>`;
+            const medal = i < 3 ? `<span class="ranking-medal ${['gold', 'silver', 'bronze'][i]}">${rankMedals[i]}</span>`
+                : `<span class="ranking-medal">#${i + 1}</span>`;
+            const rankBadge = getRankBadgeForLevel(row.level || 0);
+
+            return `
+                <div class="ranking-entry ${rankClasses[i] || ''}">
+                    ${medal}
+                    <div class="ranking-info">
+                        <div class="ranking-username">${username}</div>
+                        <div class="ranking-badge-row">
+                            <span>${rankBadge}</span>
+                            ${tierPill}
+                        </div>
+                    </div>
+                    <div class="ranking-level">
+                        <span class="ranking-level-num">${row.level || 0}</span>
+                        <span class="ranking-level-label">LV</span>
+                    </div>
+                    <div class="ranking-points">
+                        <span class="ranking-pts-num">${row.points || 0}</span>
+                        <span class="ranking-pts-label">pts</span>
+                    </div>
+                </div>`;
+        }).join('');
+
+    } catch (err) {
+        console.error('[PLANOS] Error loading global rankings:', err);
+        container.innerHTML = '<div class="leaderboard-empty">Could not load rankings. Try again.</div>';
+    }
+}
+
+function getRankBadgeForLevel(level) {
+    if (level >= 100) return '👑';
+    if (level >= 50) return '💎';
+    if (level >= 25) return '🔥';
+    if (level >= 10) return '🏹';
+    if (level >= 5) return '🛡️';
+    if (level >= 2) return '⚔️';
+    return '🌱';
+}
+
+// ─── Pricing UI ───────────────────────────────────────────────
+
+function updatePricingUI() {
+    const tierNameEl = document.getElementById('current-tier-name');
+    const tierEmojiEl = document.getElementById('current-tier-emoji');
+    const proBtn = document.getElementById('pro-upgrade-btn');
+    const eliteBtn = document.getElementById('elite-upgrade-btn');
+    const freeLabel = document.getElementById('free-current-label');
+    const freeCard = document.getElementById('pricing-free-card');
+    const proCard = document.getElementById('pricing-pro-card');
+    const eliteCard = document.getElementById('pricing-elite-card');
+
+    const tierEmojis = { Free: '🌱', Pro: '⚡', Elite: '👑' };
+
+    if (tierNameEl) tierNameEl.textContent = userTier;
+    if (tierEmojiEl) tierEmojiEl.textContent = tierEmojis[userTier] || '🌱';
+
+    // Reset active-tier class
+    [freeCard, proCard, eliteCard].forEach(c => c?.classList.remove('active-tier'));
+
+    if (userTier === 'Free') {
+        freeCard?.classList.add('active-tier');
+        if (freeLabel) freeLabel.style.display = 'block';
+        if (proBtn) { proBtn.disabled = false; proBtn.textContent = '⚡ Upgrade to Pro'; }
+        if (eliteBtn) { eliteBtn.disabled = false; eliteBtn.textContent = '👑 Upgrade to Elite'; }
+    } else if (userTier === 'Pro') {
+        proCard?.classList.add('active-tier');
+        if (freeLabel) freeLabel.style.display = 'none';
+        if (proBtn) { proBtn.disabled = true; proBtn.textContent = '✅ Current Plan'; }
+        if (eliteBtn) { eliteBtn.disabled = false; eliteBtn.textContent = '👑 Upgrade to Elite'; }
+    } else if (userTier === 'Elite') {
+        eliteCard?.classList.add('active-tier');
+        if (freeLabel) freeLabel.style.display = 'none';
+        if (proBtn) { proBtn.disabled = true; proBtn.textContent = '✅ Included'; }
+        if (eliteBtn) { eliteBtn.disabled = true; eliteBtn.textContent = '👑 Current Plan'; }
+    }
+}
+
+// ─── QRIS Payment System ──────────────────────────────────────
+
+let _qrisPendingTier = null; // 'Pro' | 'Elite'
+
+function upgradeTier(tier) {
+    if (!currentUser) {
+        openAuthModal('login');
+        showAuthNotification('🔐 Login Required', 'Please log in to upgrade your plan.', 'info');
+        return;
+    }
+    if ((tier === 'Pro' && userTier === 'Pro') || userTier === 'Elite') {
+        showAuthNotification('✅ Already Upgraded', `You're already on the ${userTier} plan. You're good!`, 'info');
+        return;
+    }
+    openQrisModal(tier);
+}
+
+function openQrisModal(tier) {
+    _qrisPendingTier = tier;
+
+    const modal = document.getElementById('qris-modal');
+    const chip = document.getElementById('qris-tier-chip');
+    const amount = document.getElementById('qris-amount-display');
+    const banner = document.querySelector('.qris-amount-banner');
+
+    if (chip) {
+        chip.textContent = tier === 'Elite' ? '👑 ELITE' : '⚡ PRO';
+        chip.className = 'qris-tier-chip' + (tier === 'Elite' ? ' elite' : '');
+    }
+    if (amount) amount.textContent = tier === 'Elite' ? 'Rp 35.000' : 'Rp 25.000';
+    if (banner) {
+        banner.className = 'qris-amount-banner' + (tier === 'Elite' ? ' elite-amount' : '');
+    }
+
+    // Reset form
+    const form = document.getElementById('qris-payment-form');
+    if (form) form.reset();
+    const fileLabel = document.getElementById('qris-file-label');
+    if (fileLabel) fileLabel.textContent = '📎 Click to upload screenshot';
+    const fileDrop = document.getElementById('qris-file-drop');
+    if (fileDrop) fileDrop.classList.remove('has-file');
+
+    const btn = document.getElementById('qris-submit-btn');
+    if (btn) { btn.disabled = false; btn.textContent = "✅ I've Paid — Submit Confirmation"; }
+
+    if (modal) {
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeQrisModal() {
+    const modal = document.getElementById('qris-modal');
+    if (modal) modal.style.display = 'none';
+    document.body.style.overflow = '';
+    _qrisPendingTier = null;
+}
+
+function handleQrisOverlayClick(e) {
+    if (e.target === document.getElementById('qris-modal')) closeQrisModal();
+}
+
+function handleFileSelect(input) {
+    const label = document.getElementById('qris-file-label');
+    const drop = document.getElementById('qris-file-drop');
+    if (input.files && input.files[0]) {
+        if (label) label.textContent = `📸 ${input.files[0].name}`;
+        if (drop) drop.classList.add('has-file');
+    } else {
+        if (label) label.textContent = '📎 Click to upload screenshot';
+        if (drop) drop.classList.remove('has-file');
+    }
+}
+
+async function submitPaymentProof(e) {
+    e.preventDefault();
+    if (!currentUser || !_qrisPendingTier) return;
+
+    const txnId = document.getElementById('qris-txn-id')?.value.trim();
+    const fileEl = document.getElementById('qris-receipt');
+    const file = fileEl?.files?.[0] || null;
+    const btn = document.getElementById('qris-submit-btn');
+
+    if (!txnId) {
+        showAuthNotification('⚠️ Missing Info', 'Please enter your Transaction ID.', 'info');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Submitting...';
+
+    try {
+        let receiptUrl = null;
+
+        // 1. Upload screenshot to Supabase Storage if provided
+        if (file) {
+            const ext = file.name.split('.').pop();
+            const path = `${currentUser.id}/${Date.now()}.${ext}`;
+            const { error: uploadErr } = await window.supabase.storage
+                .from('payment-receipts')
+                .upload(path, file, { upsert: false });
+
+            if (uploadErr) {
+                console.warn('[PLANOS] Receipt upload failed (non-critical):', uploadErr.message);
+            } else {
+                const { data: urlData } = window.supabase.storage
+                    .from('payment-receipts')
+                    .getPublicUrl(path);
+                receiptUrl = urlData?.publicUrl || null;
+            }
+        }
+
+        // 2. Get username + email for admin visibility
+        const username = currentUser.user_metadata?.username || 'Unknown';
+        const email = currentUser.email || 'No email';
+        const amount = _qrisPendingTier === 'Elite' ? 35000 : 25000;
+
+        // 3. Insert payment record into Supabase
+        const { error: insertErr } = await window.supabase
+            .from('payments')
+            .insert({
+                user_id: currentUser.id,
+                username,
+                email,
+                tier: _qrisPendingTier,
+                amount,
+                transaction_id: txnId,
+                receipt_url: receiptUrl,
+                status: 'pending'
+            });
+
+        if (insertErr) throw insertErr;
+
+        // Grab the newly inserted payment ID for the approve link
+        const { data: insertedPayment } = await window.supabase
+            .from('payments')
+            .select('id')
+            .eq('user_id', currentUser.id)
+            .eq('transaction_id', txnId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+        const paymentId = insertedPayment?.id || 'unknown';
+
+        // 4. Notify admin via EmailJS
+        try {
+            if (typeof emailjs !== 'undefined') {
+                await emailjs.send('service_cg1yhic', 'template_k3rkc88', {
+                    // ── Match your EmailJS template variables exactly ──
+                    user_name: username,
+                    user_email: email,
+                    user_tier: _qrisPendingTier,
+                    transaction_ref: txnId,
+                    date_submitted: new Date().toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' }),
+                    payment_proof_url: receiptUrl || '(No screenshot uploaded)',
+                    approve_link: `${window.location.origin}/PLANOS/admin.html?payment=${paymentId}`
+                });
+                console.log('[PLANOS] Admin email sent via EmailJS.');
+            }
+        } catch (emailErr) {
+            console.warn('[PLANOS] EmailJS failed (non-critical):', emailErr);
+        }
+
+        // 5. Close modal + show confirmation
+        closeQrisModal();
+        showAuthNotification(
+            '🎉 Payment Submitted!',
+            `We received your confirmation for the ${_qrisPendingTier || ''} plan. Your tier will be unlocked within 30 minutes. Sit tight!`,
+            'success'
+        );
+
+    } catch (err) {
+        console.error('[PLANOS] submitPaymentProof error:', err);
+        showAuthNotification('❌ Submission Failed', err.message || 'Something went wrong. Try again.', 'error');
+        btn.disabled = false;
+        btn.textContent = "✅ I've Paid — Submit Confirmation";
+    }
+}
+
+// ─── Realtime: Auto-upgrade when admin approves ───────────────
+
+function subscribeToPaymentUpdates() {
+    if (!currentUser || !window.supabase) return;
+
+    window.supabase
+        .channel('payment-approvals')
+        .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'payments',
+            filter: `user_id=eq.${currentUser.id}`
+        }, (payload) => {
+            const { status, tier } = payload.new;
+            console.log('[PLANOS] Payment update received:', status, tier);
+
+            if (status === 'approved') {
+                showAuthNotification(
+                    '🎉 Payment Approved!',
+                    `You've been upgraded to the ${tier} plan. Welcome aboard!`,
+                    'success'
+                );
+                // Grant all themes for Elite locally too
+                if (tier === 'Elite') {
+                    const inv = getLootInventory();
+                    inv.themes = LOOT_THEMES.map(t => t.id);
+                    saveLootInventory(inv);
+                }
+                loadUserTier();
+
+            } else if (status === 'rejected') {
+                showAuthNotification(
+                    '😔 Payment Not Verified',
+                    'We couldn\'t verify your payment. Please DM us at PlanosPlanMake@gmail.com and we\'ll sort it out.',
+                    'error'
+                );
+            }
+        })
+        .subscribe();
+}
+
+// ─── MUSIC PLAYER UPLOAD & LIBRARY ───────────────────────────
+
+async function handleMusicUpload(input) {
+    if (!currentUser || !window.supabase) {
+        showAuthNotification('🔒 Login Required', 'Please login to upload your own music.', 'warning');
+        return;
+    }
+
+    const file = input.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('audio/')) {
+        showAuthNotification('⚠️ Invalid File', 'Please upload a valid audio file (e.g. MP3).', 'warning');
+        return;
+    }
+
+    const maxSizeBytes = 10 * 1024 * 1024; // 10MB limit
+    if (file.size > maxSizeBytes) {
+        showAuthNotification('⚠️ File Too Large', 'Maximum file size is 10MB.', 'warning');
+        return;
+    }
+
+    const progressWrap = document.getElementById('upload-progress-wrap');
+    const progressFill = document.getElementById('upload-progress-fill');
+    
+    progressWrap.style.display = 'block';
+    progressFill.style.width = '10%';
+
+    try {
+        const fileExt = file.name.split('.').pop();
+        const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+        const fileName = `${Date.now()}_${safeName}`;
+        const filePath = `${currentUser.id}/${fileName}`;
+
+        // Upload to Storage
+        progressFill.style.width = '40%';
+        const { data, error } = await window.supabase.storage
+            .from('user-music')
+            .upload(filePath, file);
+
+        if (error) throw error;
+        progressFill.style.width = '70%';
+
+        // Get Public URL
+        const { data: urlData } = window.supabase.storage
+            .from('user-music')
+            .getPublicUrl(filePath);
+            
+        const publicUrl = urlData.publicUrl;
+
+        // Save to Database
+        const { error: dbError } = await window.supabase
+            .from('user_tracks')
+            .insert({
+                user_id: currentUser.id,
+                title: file.name.replace(/\.[^/.]+$/, ""), // remove extension
+                file_url: publicUrl,
+                file_path: filePath
+            });
+
+        if (dbError) throw dbError;
+        
+        progressFill.style.width = '100%';
+        showAuthNotification('🎵 Upload Success!', 'Your song has been added to your library.', 'info');
+        
+        // Refresh library
+        await fetchUserTracks();
+        
+    } catch (err) {
+        console.error('[PLANOS] Music upload error:', err);
+        showAuthNotification('❌ Upload Failed', err.message, 'warning');
+    } finally {
+        setTimeout(() => {
+            progressWrap.style.display = 'none';
+            progressFill.style.width = '0%';
+            input.value = ''; // reset
+        }, 1500);
+    }
+}
+
+async function fetchUserTracks() {
+    const trackSelector = document.getElementById('track-selector');
+    if (!trackSelector) return;
+
+    // Reset to default tracks
+    allTracks = [...defaultPlaylist];
+
+    if (!currentUser || !window.supabase) {
+        renderTrackSelector();
+        return;
+    }
+
+    try {
+        const { data, error } = await window.supabase
+            .from('user_tracks')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .order('created_at', { ascending: true }); // Older tracks first
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+            data.forEach(track => {
+                allTracks.push({
+                    title: track.title,
+                    src: track.file_url,
+                    type: 'user'
+                });
+            });
+        }
+
+        renderTrackSelector();
+        
+        // Auto-select the newly added track if it just got added
+        if (allTracks.length > defaultPlaylist.length) {
+            const newLastIndex = allTracks.length - 1;
+            // Only auto-switch if we want to immediately play the new track
+            // e.g. trackSelector.value = newLastIndex; selectTrack(newLastIndex);
+        }
+
+    } catch (err) {
+        console.error('[PLANOS] Error fetching user tracks:', err);
+        renderTrackSelector();
+    }
+}
+
+function renderTrackSelector() {
+    const trackSelector = document.getElementById('track-selector');
+    if (!trackSelector) return;
+    
+    trackSelector.innerHTML = '';
+    
+    // Add default tracks group
+    const defaultGroup = document.createElement('optgroup');
+    defaultGroup.label = "PLANOS Mix";
+    
+    // Add user tracks group
+    const userGroup = document.createElement('optgroup');
+    userGroup.label = "My Uploads";
+    
+    let hasUserTracks = false;
+
+    allTracks.forEach((track, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        option.textContent = track.title;
+        
+        if (track.type === 'default') {
+            defaultGroup.appendChild(option);
+        } else {
+            hasUserTracks = true;
+            userGroup.appendChild(option);
+        }
+    });
+
+    trackSelector.appendChild(defaultGroup);
+    if (hasUserTracks) {
+        trackSelector.appendChild(userGroup);
+    }
+    
+    // Keep current selection
+    if (currentTrackIndex < allTracks.length) {
+        trackSelector.value = currentTrackIndex;
+    } else {
+        currentTrackIndex = 0;
+        trackSelector.value = 0;
+        loadTrack(0);
+    }
+}
+
+// ─── STATS & INSIGHTS ────────────────────────────────────────────────────────
+
+/**
+ * Compute personal statistics from the local task array and populate the
+ * Insights panel cards.  Works entirely from already-loaded data so no extra
+ * network call is needed; RLS on the Supabase side guarantees we only ever
+ * received this user's own tasks.
+ */
+function computeInsights() {
+    const tasks = loadTasks();
+
+    // ── 1. Total Completed ────────────────────────────────────────────────────
+    const finished   = tasks.filter(t => t.status === 'finished');
+    const totalDone  = finished.length;
+
+    // ── 2. The Marathoner (longest single finished task in minutes) ────────────
+    let longestMinutes = 0;
+    finished.forEach(t => {
+        // Prefer the stored duration_minutes field; fall back to wall-clock diff
+        if (t.duration_minutes && t.duration_minutes > 0) {
+            if (t.duration_minutes > longestMinutes) longestMinutes = t.duration_minutes;
+        } else if (t.end_time && t.created_at) {
+            const diff = (new Date(t.end_time) - new Date(t.created_at)) / 60000;
+            if (diff > 0 && diff > longestMinutes) longestMinutes = Math.round(diff);
+        }
+    });
+
+    // ── 3. Productivity Score (finished / total tasks, as a percentage) ────────
+    const totalTasks = tasks.length;
+    const score = totalTasks > 0 ? Math.round((totalDone / totalTasks) * 100) : 0;
+
+    // ── 4. Total Focus Time (sum of duration_minutes for all finished tasks) ───
+    let totalFocusMinutes = 0;
+    finished.forEach(t => {
+        if (t.duration_minutes && t.duration_minutes > 0) {
+            totalFocusMinutes += t.duration_minutes;
+        }
+    });
+    // Also add time already spent on currently-ongoing tasks
+    tasks.filter(t => t.status === 'ongoing').forEach(t => {
+        if (t.duration_minutes && t.duration_minutes > 0 && t.end_time) {
+            const elapsed = t.duration_minutes - Math.max(0,
+                (new Date(t.end_time) - Date.now()) / 60000);
+            totalFocusMinutes += Math.round(Math.max(0, elapsed));
+        }
+    });
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    const fmtTime = m => {
+        if (m < 60)  return `${m}m`;
+        const h = Math.floor(m / 60);
+        const rem = m % 60;
+        return rem > 0 ? `${h}h ${rem}m` : `${h}h`;
+    };
+
+    // ── Update DOM ────────────────────────────────────────────────────────────
+    const set = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.textContent = val;
+            el.classList.add('insight-pop');
+            setTimeout(() => el.classList.remove('insight-pop'), 600);
+        }
+    };
+
+    set('insight-total-completed', totalDone);
+    set('insight-longest-task',    fmtTime(longestMinutes));
+    set('insight-productivity-score', `${score}%`);
+    set('insight-focus-time',      fmtTime(totalFocusMinutes));
+}
+
+// Re-calculate whenever the Insights tab is opened.
+// We monkey-patch switchTab minimally so we don't touch the original logic.
+const _originalSwitchTab = window.switchTab;
+window.switchTab = function(tabName) {
+    if (_originalSwitchTab) _originalSwitchTab(tabName);
+    if (tabName === 'insights') computeInsights();
+};
+
+// Expose to global so it can be called from other places if needed
+window.computeInsights = computeInsights;
+
+// Ensure fetchUserTracks runs after authentication
+window.handleMusicUpload = handleMusicUpload;
+window.fetchUserTracks = fetchUserTracks;
+
+window.renderGlobalLeaderboard = renderGlobalLeaderboard;
+window.upgradeTier = upgradeTier;
+window.openQrisModal = openQrisModal;
+window.closeQrisModal = closeQrisModal;
+window.handleQrisOverlayClick = handleQrisOverlayClick;
+window.handleFileSelect = handleFileSelect;
+window.submitPaymentProof = submitPaymentProof;
+window.loadUserTier = loadUserTier;
+window.applyPremiumGating = applyPremiumGating;
+window.updatePricingUI = updatePricingUI;
