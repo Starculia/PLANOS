@@ -4,18 +4,30 @@
 const SUPABASE_URL = 'https://fwgjphiegsppfvbpoxwi.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ3Z2pwaGllZ3NwcGZ2YnBveHdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1NjkzNDYsImV4cCI6MjA4NzE0NTM0Nn0.6KpbC7QP9p1uEYndZzf_2cgbeATGUiTxLjjvr8fvY8A';
 
-// Load Supabase
-const supabaseScript = document.createElement('script');
-supabaseScript.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-document.head.appendChild(supabaseScript);
+// Initialise Supabase only if it hasn't already been set up (e.g. by index.html).
+// This prevents a race condition where two createClient() calls overwrite each other.
+function _initSupabaseIfNeeded() {
+    if (window.supabase && typeof window.supabase.auth !== 'undefined') {
+        console.log('[PLANOS Auth] Supabase already initialised — skipping duplicate init.');
+        return;
+    }
+    if (typeof window.supabase?.createClient === 'function') {
+        // The CDN library is loaded but createClient hasn't been called yet
+        window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('[PLANOS Auth] Supabase initialised from auth.js');
+    } else {
+        // Library not yet loaded — inject it then init
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+        script.onload = () => {
+            window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            console.log('[PLANOS Auth] Supabase loaded and initialised from auth.js');
+        };
+        document.head.appendChild(script);
+    }
+}
 
-supabaseScript.onload = function() {
-    window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    console.log('[PLANOS Auth] Supabase loaded successfully');
-    
-    // Auth state listener removed to prevent auto-redirect
-    // Users will only be redirected after explicit login actions
-};
+_initSupabaseIfNeeded();
 
 // --- Password Visibility Toggle ---
 function togglePasswordVisibility(inputId, button) {

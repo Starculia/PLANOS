@@ -82,7 +82,7 @@
             </button>
             <button class="nav-btn" onclick="switchTab('pricing')" title="Upgrade Plan" id="nav-pricing">
                 <span class="material-symbols-outlined">workspace_premium</span>
-                <span class="nav-text">Upgrade ✨</span>
+                <span class="nav-text">Upgrade</span>
             </button>
             <button class="nav-btn" onclick="switchTab('about')" title="About Us">
                 <span class="material-symbols-outlined">groups</span>
@@ -551,7 +551,7 @@
         <!-- ═══ ENHANCED MUSIC PLAYER ═══ -->
         <div id="audio-player-container">
             <div class="audio-player-header" onclick="toggleAudioPlayer()">
-                <h4>🎵Music Player</h4>
+                <h4>Music Player</h4>
             </div>
 
             <div class="audio-player-content">
@@ -823,16 +823,16 @@
                 </div>
 
                 <div class="qris-field">
-                    <label for="qris-receipt">Payment Screenshot <span class="qris-optional">(optional but speeds up
-                            review)</span></label>
+                    <label for="qris-receipt">Payment Screenshot <span class="req">*</span> <span class="qris-optional">(required — upload your payment proof)</span></label>
                     <label class="qris-file-drop" id="qris-file-drop">
                         <span id="qris-file-label">📎 Click to upload screenshot</span>
-                        <input type="file" id="qris-receipt" accept="image/*" onchange="handleFileSelect(this)" />
+                        <input type="file" id="qris-receipt" accept="image/*" onchange="handleFileSelect(this)" required />
                     </label>
                 </div>
 
-                <button type="submit" class="qris-submit-btn" id="qris-submit-btn">
-                    ✅ I've Paid — Submit Confirmation
+                <button type="submit" class="qris-submit-btn" id="qris-submit-btn" disabled
+                    title="Upload your payment screenshot first">
+                    📎 Upload Screenshot to Proceed
                 </button>
             </form>
 

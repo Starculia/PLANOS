@@ -319,6 +319,8 @@ function initializeAuth() {
                     loadUserDataFromSupabase();
                     loadUserTier();
                 }
+                // Always apply gating so Free / logged-out users see the correct locks
+                applyPremiumGating();
                 fetchUserTracks();
             });
 
@@ -336,6 +338,11 @@ function initializeAuth() {
                     fetchUserTracks();
                     showAuthNotification('🎉 Welcome Back!', 'You are now logged in as ' + (currentUser.user_metadata?.username || 'User'), 'success');
                 } else if (event === 'SIGNED_OUT') {
+                    // Tear down realtime subscription
+                    if (_paymentChannel && window.supabase) {
+                        window.supabase.removeChannel(_paymentChannel);
+                        _paymentChannel = null;
+                    }
                     // Clear local data and show empty state
                     localStorage.removeItem('tasks');
                     localStorage.removeItem('points');
@@ -354,30 +361,12 @@ function initializeAuth() {
     checkSupabase();
 }
 
-function loadUserDataFromSupabase() {
+async function loadUserDataFromSupabase() {
     if (!currentUser) return;
 
-    // Load user's tasks from Supabase
-    window.supabase
-        .from('tasks')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .order('created_at', { ascending: false })
-        .then(({ data, error }) => {
-            if (error) {
-                console.error('[PLANOS] Error loading user tasks:', error);
-                return;
-            }
-
-            if (data && data.length > 0) {
-                localStorage.setItem('tasks', JSON.stringify(data));
-                updateTaskDisplay();
-            } else {
-                // Clear any existing tasks
-                localStorage.setItem('tasks', JSON.stringify([]));
-                updateTaskDisplay();
-            }
-        });
+    // Tasks: getTasks() is now the single source — it fetches from Supabase
+    // and writes through to localStorage automatically.
+    await updateTaskDisplay();
 
     // Load user's progress from Supabase
     window.supabase
@@ -539,8 +528,37 @@ function saveTasks(tasks) {
     localStorage.setItem('tasks', JSON.stringify(tasks));
 }
 
+/** Fast synchronous read from localStorage — used internally by tickTimers etc. */
 function loadTasks() {
     return JSON.parse(localStorage.getItem('tasks')) || [];
+}
+
+/**
+ * UNIFIED DATA SOURCE — always call this for UI rendering.
+ * • Logged in  → fetch from Supabase (server is truth), write-through to localStorage.
+ * • Logged out → read from localStorage (offline / demo mode).
+ */
+async function getTasks() {
+    if (currentUser && window.supabase) {
+        try {
+            const { data, error } = await window.supabase
+                .from('tasks')
+                .select('*')
+                .eq('user_id', currentUser.id)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            // Keep localStorage in sync as a write-through cache
+            const tasks = data || [];
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+            return tasks;
+        } catch (err) {
+            console.warn('[PLANOS] getTasks: Supabase fetch failed, falling back to localStorage:', err.message);
+            return loadTasks();
+        }
+    }
+    return loadTasks();
 }
 
 function clampNonNegative(n) {
@@ -562,7 +580,7 @@ function ensurePointsDisplayExists() {
 }
 
 // --- Tab Switching ---
-function switchTab(tabName) {
+async function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
     document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
 
@@ -574,6 +592,8 @@ function switchTab(tabName) {
     const btnIndex = tabMap[tabName];
     if (btnIndex !== undefined && buttons[btnIndex]) buttons[btnIndex].classList.add('active');
 
+    // Await the unified async render so the list is always populated before the tab is visible
+    if (tabName === 'ongoing' || tabName === 'finished') await updateTaskDisplay();
     if (tabName === 'badges') displayAllBadges();
     if (tabName === 'leaderboard') { renderLeaderboard(); applyPremiumGating(); }
     if (tabName === 'global-rankings') { renderGlobalLeaderboard(); applyPremiumGating(); }
@@ -1255,7 +1275,7 @@ function checkAchievements() {
 
 
 // --- Task creation & management ---
-function createTask() {
+async function createTask() {
     const titleEl = document.getElementById('task-title');
     const descEl = document.getElementById('task-description');
     const hoursEl = document.getElementById('task-hours');
@@ -1284,18 +1304,21 @@ function createTask() {
         }
     }
 
-    addTask(title, description, 'ongoing', totalMinutes, category);
-
+    // Clear form immediately for responsiveness
     if (titleEl) titleEl.value = '';
     if (descEl) descEl.value = '';
     if (hoursEl) hoursEl.value = '0';
     if (minutesEl) minutesEl.value = '0';
     if (categoryEl) categoryEl.value = 'Normal';
 
+    // Await addTask so the Supabase insert + localStorage cache are both
+    // settled before we switch tabs and render the updated list.
+    await addTask(title, description, 'ongoing', totalMinutes, category);
+
     switchTab('ongoing');
 }
 
-function addTask(title, description, requestedStatus, durationMinutes = 0, category = 'Normal') {
+async function addTask(title, description, requestedStatus, durationMinutes = 0, category = 'Normal') {
     const tasks = loadTasks();
     let status = requestedStatus;
 
@@ -1320,32 +1343,41 @@ function addTask(title, description, requestedStatus, durationMinutes = 0, categ
         end_time: durationMinutes > 0 ? new Date(Date.now() + durationMinutes * 60000).toISOString() : null
     };
 
-    // Save to localStorage first
+    // Optimistically push to localStorage so the UI is never blank
     tasks.push(newTask);
     localStorage.setItem('tasks', JSON.stringify(tasks));
 
-    // Also save to Supabase if user is logged in
+    // Await the Supabase insert so localStorage is the confirmed server state
+    // before updateTaskDisplay() reads it via getTasks().
     if (currentUser && window.supabase) {
+        // Only send columns that exist in the DB schema:
+        // - 'category' is NOT in the tasks table → omit
+        // - 'created_at' has a server DEFAULT NOW() → omit to avoid conflicts
+        // - 'pending' is a local-only UI state; DB CHECK only allows 'ongoing'/'finished'/'create'
         const taskToSave = {
-            ...newTask,
-            user_id: currentUser.id
+            id:               newTask.id,
+            user_id:          currentUser.id,
+            title:            newTask.title,
+            description:      newTask.description || null,
+            status:           newTask.status === 'pending' ? 'ongoing' : newTask.status,
+            duration_minutes: newTask.duration_minutes,
+            end_time:         newTask.end_time || null
         };
-
-        window.supabase
+        const { error } = await window.supabase
             .from('tasks')
-            .insert(taskToSave)
-            .then(({ data, error }) => {
-                if (error) {
-                    console.error('[PLANOS] Error saving task to Supabase:', error);
-                }
-            });
+            .insert(taskToSave);
+        if (error) {
+            console.error('[PLANOS] Error saving task to Supabase:', error);
+            // Task stays in localStorage — user won't lose it locally
+        }
     }
 
     playNotificationSound('add');
-    updateTaskDisplay();
+    // Await so the tab switch only happens after the list is fully painted
+    await updateTaskDisplay();
 }
 
-function markAsFinished(taskId) {
+async function markAsFinished(taskId) {
     const tasks = loadTasks();
     const taskIndex = tasks.findIndex(t => t.id === taskId);
 
@@ -1372,7 +1404,7 @@ function markAsFinished(taskId) {
         // ── Update UI points display & sync to Supabase ──
         updatePointsAndLevel();
 
-        // ── Update task in Supabase if logged in ──
+        // ── Update task in Supabase if logged in (fire-and-forget — localStorage already updated) ──
         if (currentUser && window.supabase) {
             window.supabase
                 .from('tasks')
@@ -1390,7 +1422,7 @@ function markAsFinished(taskId) {
 
         showEarlyFinishNotification(task.title);
         playNotificationSound('complete');
-        updateTaskDisplay();
+        await updateTaskDisplay();
         checkNextPendingTask();
 
         // ── Loot Box: moved to tickTimers() — only fires on auto-complete ──
@@ -1428,7 +1460,7 @@ function checkLevelUp(newPoints, oldPoints) {
 
 let currentTransitionTaskId = null;
 
-function startPendingTask(taskId) {
+async function startPendingTask(taskId) {
     const tasks = loadTasks();
     const hasOngoing = tasks.some(t => t.status === 'ongoing');
 
@@ -1455,7 +1487,7 @@ function startPendingTask(taskId) {
         }
 
         playNotificationSound('add');
-        updateTaskDisplay();
+        await updateTaskDisplay();
 
         // Auto-play music if loaded
         if (audio && audio.src && audio.paused) {
@@ -1715,7 +1747,7 @@ function showEarlyFinishNotification(taskTitle) {
     if (modal) modal.classList.add('show');
 }
 
-function deleteTask(taskId) {
+async function deleteTask(taskId) {
     const tasks = loadTasks();
     const filtered = tasks.filter(t => t.id !== taskId);
     localStorage.setItem('tasks', JSON.stringify(filtered));
@@ -1734,39 +1766,35 @@ function deleteTask(taskId) {
             });
     }
 
-    updateTaskDisplay();
+    await updateTaskDisplay();
 }
 
 // --- UI rendering ---
-function updateTaskDisplay() {
-    const tasks = loadTasks();
-    const ongoingList = document.getElementById('ongoing-tasks');
-    const finishedList = document.getElementById('finished-tasks');
+// Async: always awaits getTasks() which is the single unified data source
+// (Supabase when logged in, localStorage when not).
+async function updateTaskDisplay() {
+    const tasks = await getTasks();
 
-    // Try alternative IDs if main ones don't exist
-    const ongoingListAlt = ongoingList || document.getElementById('ongoing-task');
-    const finishedListAlt = finishedList || document.getElementById('finished-task');
+    // Prefer the <ul> directly; fall back to the tab container
+    const ongoingContainer = document.getElementById('ongoing-tasks') || document.getElementById('ongoing-task');
+    const finishedContainer = document.getElementById('finished-tasks') || document.getElementById('finished-task');
 
     const ongoingTasks = tasks.filter(task => task.status === 'ongoing' || task.status === 'pending');
     const finishedTasks = tasks.filter(task => task.status === 'finished');
 
-    if (ongoingListAlt) ongoingListAlt.querySelector('.task-list, ul') ?
-        ongoingListAlt.querySelector('.task-list, ul').innerHTML = ongoingTasks.length > 0 ? '' : '<li class="empty-state">No ongoing or pending tasks yet</li>' :
-        ongoingListAlt.innerHTML = ongoingTasks.length > 0 ? '' : '<li class="empty-state">No ongoing or pending tasks yet</li>';
+    if (ongoingContainer) {
+        ongoingContainer.innerHTML = ongoingTasks.length > 0
+            ? ''
+            : '<li class="empty-state">No ongoing or pending tasks yet</li>';
+        ongoingTasks.forEach(task => ongoingContainer.appendChild(createTaskElement(task)));
+    }
 
-    if (finishedListAlt) finishedListAlt.querySelector('.task-list, ul') ?
-        finishedListAlt.querySelector('.task-list, ul').innerHTML = finishedTasks.length > 0 ? '' : '<li class="empty-state">No finished tasks yet</li>' :
-        finishedListAlt.innerHTML = finishedTasks.length > 0 ? '' : '<li class="empty-state">No finished tasks yet</li>';
-
-    const ongoingContainer = ongoingListAlt.querySelector('.task-list, ul') || ongoingListAlt;
-    const finishedContainer = finishedListAlt.querySelector('.task-list, ul') || finishedListAlt;
-
-    ongoingTasks.forEach(task => {
-        if (ongoingContainer) ongoingContainer.appendChild(createTaskElement(task));
-    });
-    finishedTasks.forEach(task => {
-        if (finishedContainer) finishedContainer.appendChild(createTaskElement(task));
-    });
+    if (finishedContainer) {
+        finishedContainer.innerHTML = finishedTasks.length > 0
+            ? ''
+            : '<li class="empty-state">No finished tasks yet</li>';
+        finishedTasks.forEach(task => finishedContainer.appendChild(createTaskElement(task)));
+    }
 
     updateTimerDisplays();
 }
@@ -3097,7 +3125,7 @@ function openQrisModal(tier) {
     if (fileDrop) fileDrop.classList.remove('has-file');
 
     const btn = document.getElementById('qris-submit-btn');
-    if (btn) { btn.disabled = false; btn.textContent = "✅ I've Paid — Submit Confirmation"; }
+    if (btn) { btn.disabled = true; btn.textContent = "📎 Upload Screenshot to Proceed"; }
 
     if (modal) {
         modal.style.display = 'flex';
@@ -3119,12 +3147,23 @@ function handleQrisOverlayClick(e) {
 function handleFileSelect(input) {
     const label = document.getElementById('qris-file-label');
     const drop = document.getElementById('qris-file-drop');
+    const submitBtn = document.getElementById('qris-submit-btn');
     if (input.files && input.files[0]) {
         if (label) label.textContent = `📸 ${input.files[0].name}`;
         if (drop) drop.classList.add('has-file');
+        // Enable submit button now that proof is attached
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "✅ I've Paid — Submit Confirmation";
+        }
     } else {
         if (label) label.textContent = '📎 Click to upload screenshot';
         if (drop) drop.classList.remove('has-file');
+        // Disable again if file is cleared
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = '📎 Upload Screenshot to Proceed';
+        }
     }
 }
 
@@ -3142,29 +3181,39 @@ async function submitPaymentProof(e) {
         return;
     }
 
+    // Guard: proof of payment is now mandatory
+    if (!file) {
+        showAuthNotification('⚠️ Proof Required', 'Proof of payment is required to proceed.', 'error');
+        return;
+    }
+
     btn.disabled = true;
-    btn.textContent = '⏳ Submitting...';
+    btn.textContent = '⏳ Uploading proof...';
 
     try {
-        let receiptUrl = null;
+        // 1. Upload screenshot to Supabase Storage (mandatory — abort if it fails)
+        const ext = file.name.split('.').pop();
+        const path = `${currentUser.id}/${Date.now()}.${ext}`;
+        const { error: uploadErr } = await window.supabase.storage
+            .from('payment-receipts')
+            .upload(path, file, { upsert: false });
 
-        // 1. Upload screenshot to Supabase Storage if provided
-        if (file) {
-            const ext = file.name.split('.').pop();
-            const path = `${currentUser.id}/${Date.now()}.${ext}`;
-            const { error: uploadErr } = await window.supabase.storage
-                .from('payment-receipts')
-                .upload(path, file, { upsert: false });
-
-            if (uploadErr) {
-                console.warn('[PLANOS] Receipt upload failed (non-critical):', uploadErr.message);
-            } else {
-                const { data: urlData } = window.supabase.storage
-                    .from('payment-receipts')
-                    .getPublicUrl(path);
-                receiptUrl = urlData?.publicUrl || null;
-            }
+        if (uploadErr) {
+            // Upload failed — stop here, do NOT notify admin via EmailJS
+            console.error('[PLANOS] Receipt upload failed:', uploadErr.message);
+            showAuthNotification('❌ Upload Failed', 'Proof of payment is required to proceed. Please try again.', 'error');
+            btn.disabled = false;
+            btn.textContent = "✅ I've Paid — Submit Confirmation";
+            return;
         }
+
+        // Upload succeeded — get public URL
+        const { data: urlData } = window.supabase.storage
+            .from('payment-receipts')
+            .getPublicUrl(path);
+        const receiptUrl = urlData?.publicUrl || null;
+
+        btn.textContent = '⏳ Submitting...';
 
         // 2. Get username + email for admin visibility
         const username = currentUser.user_metadata?.username || 'Unknown';
@@ -3198,17 +3247,16 @@ async function submitPaymentProof(e) {
             .single();
         const paymentId = insertedPayment?.id || 'unknown';
 
-        // 4. Notify admin via EmailJS
+        // 4. Notify admin via EmailJS — ONLY runs because upload succeeded above
         try {
             if (typeof emailjs !== 'undefined') {
                 await emailjs.send('service_cg1yhic', 'template_k3rkc88', {
-                    // ── Match your EmailJS template variables exactly ──
                     user_name: username,
                     user_email: email,
                     user_tier: _qrisPendingTier,
                     transaction_ref: txnId,
                     date_submitted: new Date().toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' }),
-                    payment_proof_url: receiptUrl || '(No screenshot uploaded)',
+                    payment_proof_url: receiptUrl,
                     approve_link: `${window.location.origin}/PLANOS/admin.html?payment=${paymentId}`
                 });
                 console.log('[PLANOS] Admin email sent via EmailJS.');
@@ -3218,10 +3266,12 @@ async function submitPaymentProof(e) {
         }
 
         // 5. Close modal + show confirmation
+        // Capture tier BEFORE closeQrisModal() nulls _qrisPendingTier
+        const confirmedTier = _qrisPendingTier;
         closeQrisModal();
         showAuthNotification(
             '🎉 Payment Submitted!',
-            `We received your confirmation for the ${_qrisPendingTier || ''} plan. Your tier will be unlocked within 30 minutes. Sit tight!`,
+            `We received your confirmation for the ${confirmedTier} plan. Your tier will be unlocked within 30 minutes. Sit tight!`,
             'success'
         );
 
@@ -3235,10 +3285,22 @@ async function submitPaymentProof(e) {
 
 // ─── Realtime: Auto-upgrade when admin approves ───────────────
 
+// Holds the active Supabase Realtime channel so we can remove it before
+// re-subscribing. Without this, re-authentication events (TOKEN_REFRESHED,
+// SIGNED_IN fired twice, etc.) crash with:
+// "cannot add postgres_changes callbacks after subscribe()"
+let _paymentChannel = null;
+
 function subscribeToPaymentUpdates() {
     if (!currentUser || !window.supabase) return;
 
-    window.supabase
+    // Remove any existing subscription before creating a new one
+    if (_paymentChannel) {
+        window.supabase.removeChannel(_paymentChannel);
+        _paymentChannel = null;
+    }
+
+    _paymentChannel = window.supabase
         .channel('payment-approvals')
         .on('postgres_changes', {
             event: 'UPDATE',
@@ -3499,28 +3561,38 @@ function computeInsights() {
         return rem > 0 ? `${h}h ${rem}m` : `${h}h`;
     };
 
-    // ── Update DOM ────────────────────────────────────────────────────────────
-    const set = (id, val) => {
+    // ── Update DOM (batched — single animation timer instead of 4) ────────────
+    const updates = [
+        ['insight-total-completed',    String(totalDone)],
+        ['insight-longest-task',       fmtTime(longestMinutes)],
+        ['insight-productivity-score', `${score}%`],
+        ['insight-focus-time',         fmtTime(totalFocusMinutes)],
+    ];
+    updates.forEach(([id, val]) => {
         const el = document.getElementById(id);
-        if (el) {
-            el.textContent = val;
-            el.classList.add('insight-pop');
-            setTimeout(() => el.classList.remove('insight-pop'), 600);
-        }
-    };
-
-    set('insight-total-completed', totalDone);
-    set('insight-longest-task',    fmtTime(longestMinutes));
-    set('insight-productivity-score', `${score}%`);
-    set('insight-focus-time',      fmtTime(totalFocusMinutes));
+        if (!el) return;
+        el.textContent = val;
+        el.classList.remove('insight-pop'); // reset so re-animation always fires
+        void el.offsetWidth;               // force reflow
+        el.classList.add('insight-pop');
+    });
+    // One shared timer cleans all pop classes
+    setTimeout(() => {
+        updates.forEach(([id]) => document.getElementById(id)?.classList.remove('insight-pop'));
+    }, 600);
 }
 
-// Re-calculate whenever the Insights tab is opened.
-// We monkey-patch switchTab minimally so we don't touch the original logic.
+// Re-calculate whenever the leaderboard tab is opened.
+// Debounced so rapid tab switching doesn't trigger multiple expensive renders.
+let _insightsDebounce = null;
 const _originalSwitchTab = window.switchTab;
 window.switchTab = function(tabName) {
     if (_originalSwitchTab) _originalSwitchTab(tabName);
-    if (tabName === 'insights') computeInsights();
+    // NOTE: the tab is named 'leaderboard', not 'insights'
+    if (tabName === 'leaderboard') {
+        clearTimeout(_insightsDebounce);
+        _insightsDebounce = setTimeout(computeInsights, 120);
+    }
 };
 
 // Expose to global so it can be called from other places if needed

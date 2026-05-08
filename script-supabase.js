@@ -1000,3 +1000,6 @@ window.PLANOS = {
     handleGoogleSignIn,
     handleSignOut
 };
+// NOTE: script-supabase.js is NOT loaded by index.html.
+// All Supabase-aware logic lives in script.js via getTasks() / updateTaskDisplay().
+// Do not add window overrides here — they will never execute.

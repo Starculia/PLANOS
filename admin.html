@@ -336,11 +336,11 @@
         </div>
 
         <div class="filter-bar">
-            <button class="filter-btn active" onclick="filterPayments('all', this)">All</button>
-            <button class="filter-btn" onclick="filterPayments('pending', this)">⏳ Pending</button>
+            <button class="filter-btn" onclick="filterPayments('all', this)">All</button>
+            <button class="filter-btn active" onclick="filterPayments('pending', this)">⏳ Pending</button>
             <button class="filter-btn" onclick="filterPayments('approved', this)">✅ Approved</button>
             <button class="filter-btn" onclick="filterPayments('rejected', this)">❌ Rejected</button>
-            <button class="filter-btn" onclick="loadPayments()">🔄 Refresh</button>
+            <button class="filter-btn" onclick="loadPayments(currentFilter)">🔄 Refresh</button>
             <span id="payment-count"></span>
         </div>
 
@@ -358,17 +358,27 @@
 
         const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         let allPayments = [];
-        let currentFilter = 'all';
+        let currentFilter = 'pending'; // default: only show to-be-approved payments
+        let realtimeChannel = null;    // guard against duplicate subscriptions
 
-        // ── Init ──────────────────────────────────────────────────────
-        async function init() {
-            const { data: { session } } = await sb.auth.getSession();
-            if (session?.user?.email === ADMIN_EMAIL) {
-                showPanel(session.user);
-            } else {
+        // ── Auth: persistent session on refresh ───────────────────────
+        //   Fires on INITIAL_SESSION (page load from localStorage) and SIGNED_OUT.
+        //   TOKEN_REFRESHED is handled silently via the realtimeChannel guard.
+        sb.auth.onAuthStateChange((event, session) => {
+            if (event === 'INITIAL_SESSION') {
+                // On page load: restore session if admin is already logged in
+                if (session?.user?.email === ADMIN_EMAIL) {
+                    showPanel(session.user);
+                } else {
+                    document.getElementById('login-screen').style.display = 'block';
+                }
+            } else if (event === 'SIGNED_OUT') {
+                // Explicit logout
+                document.getElementById('admin-panel').style.display = 'none';
                 document.getElementById('login-screen').style.display = 'block';
             }
-        }
+            // SIGNED_IN / TOKEN_REFRESHED are handled by adminLogin() directly
+        });
 
         // ── Login ─────────────────────────────────────────────────────
         async function adminLogin() {
@@ -388,6 +398,7 @@
                 errEl.style.display = 'block';
                 return;
             }
+            // Call showPanel directly — reliable even on file:// or slow environments
             showPanel(data.user);
         }
 
@@ -395,12 +406,19 @@
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('admin-panel').style.display = 'block';
             document.getElementById('admin-name-badge').textContent = user.email;
-            loadPayments();
-            // Realtime for new submissions
-            sb.channel('admin-payments').on('postgres_changes',
-                { event: '*', schema: 'public', table: 'payments' },
-                () => loadPayments()
-            ).subscribe();
+
+            // Guard: only initialise once — TOKEN_REFRESHED can trigger this again
+            if (!realtimeChannel) {
+                loadPayments('pending');
+
+                // Realtime: re-fetch whenever any payment row changes
+                realtimeChannel = sb.channel('admin-payments')
+                    .on('postgres_changes',
+                        { event: '*', schema: 'public', table: 'payments' },
+                        () => loadPayments(currentFilter)  // use live filter value
+                    )
+                    .subscribe();
+            }
         }
 
         async function adminLogout() {
@@ -409,13 +427,24 @@
         }
 
         // ── Load Payments ─────────────────────────────────────────────
-        async function loadPayments() {
+        async function loadPayments(status) {
+            // Default to the current filter (initially 'pending')
+            const fetchStatus = status !== undefined ? status : currentFilter;
+            currentFilter = fetchStatus;
+
             const container = document.getElementById('payments-container');
             container.innerHTML = '<p class="loading-msg">Loading payments…</p>';
 
-            const { data, error } = await sb.from('payments')
+            let query = sb.from('payments')
                 .select('*')
                 .order('created_at', { ascending: false });
+
+            // Filter at the Supabase level for efficiency
+            if (fetchStatus !== 'all') {
+                query = query.eq('status', fetchStatus);
+            }
+
+            const { data, error } = await query;
 
             if (error) {
                 container.innerHTML = `<p class="loading-msg" style="color:#fca5a5">Error: ${error.message}</p>`;
@@ -430,25 +459,24 @@
             currentFilter = status;
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
             if (btn) btn.classList.add('active');
-            renderPayments();
+            // Re-fetch from Supabase with the new status filter
+            loadPayments(status);
         }
 
         function renderPayments() {
             const container = document.getElementById('payments-container');
             const countEl = document.getElementById('payment-count');
 
-            const filtered = currentFilter === 'all'
-                ? allPayments
-                : allPayments.filter(p => p.status === currentFilter);
+            // allPayments is already filtered at the Supabase level by loadPayments().
+            // No need to re-filter locally — just render what we received.
+            countEl.textContent = `${allPayments.length} record${allPayments.length !== 1 ? 's' : ''}`;
 
-            countEl.textContent = `${filtered.length} record${filtered.length !== 1 ? 's' : ''}`;
-
-            if (filtered.length === 0) {
+            if (allPayments.length === 0) {
                 container.innerHTML = '<div class="empty-state">No payments found here.</div>';
                 return;
             }
 
-            container.innerHTML = filtered.map(p => {
+            container.innerHTML = allPayments.map(p => {
                 const date = new Date(p.created_at).toLocaleString('id-ID');
                 const tierCls = p.tier === 'Elite' ? 'card-tier-elite' : 'card-tier-pro';
                 const chipCls = `chip-${p.status}`;
@@ -492,7 +520,7 @@
         async function approvePayment(paymentId, tier, userId) {
             const aBtn = document.getElementById(`approve-${paymentId}`);
             const rBtn = document.getElementById(`reject-${paymentId}`);
-            if (aBtn) { aBtn.disabled = true; aBtn.textContent = '⏳'; }
+            if (aBtn) { aBtn.disabled = true; aBtn.textContent = '⏳ Approving...'; }
             if (rBtn) rBtn.disabled = true;
 
             try {
@@ -502,23 +530,42 @@
                     profileUpdate.unlocked_themes = ['Default', 'cyberpunk', 'matrix', 'gold'];
                 }
 
-                // 2. Update profiles table
+                // 2. Update profiles table — MUST succeed before touching payment
                 const { error: profileErr } = await sb.from('profiles')
                     .update(profileUpdate)
                     .eq('id', userId);
-                if (profileErr) throw profileErr;
 
-                // 3. Mark payment as approved
+                if (profileErr) {
+                    // Tier upgrade failed — do NOT change payment status
+                    throw new Error('Tier upgrade failed: ' + profileErr.message + ' — payment status left unchanged.');
+                }
+
+                // 3. Only mark payment as approved if the profile update succeeded
                 const { error: payErr } = await sb.from('payments')
-                    .update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: ADMIN_EMAIL })
+                    .update({
+                        status: 'approved',
+                        reviewed_at: new Date().toISOString(),
+                        reviewed_by: ADMIN_EMAIL
+                    })
                     .eq('id', paymentId);
+
                 if (payErr) throw payErr;
 
-                // 4. Refresh local list
-                await loadPayments();
+                // 4. Fade the card out immediately for snappy UX
+                const card = document.getElementById(`card-${paymentId}`);
+                if (card) {
+                    card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                    card.style.opacity = '0';
+                    card.style.transform = 'scale(0.96)';
+                }
+
+                // 5. After fade, reload the PENDING list from Supabase.
+                //    The approved payment won't appear (status is now 'approved').
+                //    This beats any realtime race-condition re-render.
+                setTimeout(() => loadPayments('pending'), 350);
 
             } catch (err) {
-                alert('Error: ' + err.message);
+                alert('❌ Error: ' + err.message);
                 if (aBtn) { aBtn.disabled = false; aBtn.textContent = '✅ Approve'; }
                 if (rBtn) rBtn.disabled = false;
             }
@@ -550,7 +597,7 @@
             }
         }
 
-        init();
+        // onAuthStateChange above handles init — no explicit init() call needed.
 
         // ── Deep-link: ?payment=ID from email approve link ────────────
         function highlightPaymentFromUrl() {
