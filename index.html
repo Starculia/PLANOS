@@ -3,7 +3,10 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>PLANOS | Task Planner</title>
     <link
         href="data:image/x-icon;base64,AAABAAEAEBAAAAAAAABoBQAAFgAAACgAAAAQAAAAIAAAAAEACAAAAAAAAAEAAAAAAAAAAAAAAAEAAAAAAAAAAAAARkZGACQkJADr6+sAAgICAAsLCwA/Pz8AFBQUAHNzcwBRUVEAJiYmAAQEBAD///8AxMTEAENDQwB3d3cAGBgYAFVVVQA8PDwAERERAE5OTgABAQEANTU1AHt7ewAlJSUAhISEAAMDAwBra2sAysrKAH19fQBSUlIAJycnAO7u7gCPj48AMDAwAAUFBQD39/cAoaGhACAgIADe3t4AiIiIAAcHBwBvb28AEBAQAERERACjo6MAGRkZANfX1wAiIiIAKysrAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFQAAAAAAAAAAAAAAAAAAACwAEjEeGyoHGAAAAAAAFQAAIQwMAAwMDBcAAAAAAAAAAAwMDAMcAg4ZAAAAAAAAJQ0MDAgWAAUfFQAAAAAAAAABDwwRACEVABMeHhoAAAAAChUMLgwUFSMAAAAAAAAABBANDCkMKAsrJgAAAAAwAAAJDAwnByItIAAAAAAAAAAAAAAMDAwMJC8GAAAAAAAAAAAVHQAAAAAVABUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
@@ -26,6 +29,30 @@
 </head>
 
 <body>
+
+    <!-- ═══ MOBILE BOTTOM NAVIGATION ═══ -->
+    <nav class="bottom-nav" id="bottom-nav">
+        <button class="bottom-nav-btn" data-tab="create" onclick="switchTab('create')" title="Create Task">
+            <span class="material-symbols-outlined">edit_square</span>
+            <span class="bottom-nav-label">Create</span>
+        </button>
+        <button class="bottom-nav-btn" data-tab="ongoing" onclick="switchTab('ongoing')" title="Tasks">
+            <span class="material-symbols-outlined">avg_pace</span>
+            <span class="bottom-nav-label">Tasks</span>
+        </button>
+        <button class="bottom-nav-btn" data-tab="leaderboard" onclick="switchTab('leaderboard')" title="Progress">
+            <span class="material-symbols-outlined">monitoring</span>
+            <span class="bottom-nav-label">Progress</span>
+        </button>
+        <button class="bottom-nav-btn" data-tab="global-rankings" onclick="switchTab('global-rankings')" title="Rankings">
+            <span class="material-symbols-outlined">emoji_events</span>
+            <span class="bottom-nav-label">Rankings</span>
+        </button>
+        <button class="bottom-nav-btn" onclick="toggleMobileMenu()" title="Menu">
+            <span class="material-symbols-outlined">menu</span>
+            <span class="bottom-nav-label">Menu</span>
+        </button>
+    </nav>
 
     <!-- Animated Background -->
     <div id="container">
@@ -51,56 +78,70 @@
         </div>
 
         <div class="sidebar-nav">
-            <button class="nav-btn active" onclick="switchTab('create')" title="Create Task">
-                <span class="material-symbols-outlined">assignment</span>
-                <span class="nav-text">Create Task</span>
-            </button>
-            <button class="nav-btn" onclick="switchTab('ongoing')" title="Ongoing Task">
-                <span class="material-symbols-outlined">avg_pace</span>
-                <span class="nav-text">Ongoing Task</span>
-            </button>
-            <button class="nav-btn" onclick="switchTab('finished')" title="Finished Task">
-                <span class="material-symbols-outlined">assignment_turned_in</span>
-                <span class="nav-text">Finished Task</span>
-            </button>
-            <button class="nav-btn" onclick="switchTab('planning')" title="Planning">
-                <span class="material-symbols-outlined">calendar_month</span>
-                <span class="nav-text">Plan Maker</span>
-            </button>
-            <button class="nav-btn" onclick="switchTab('badges')" title="Badges">
-                <span class="material-symbols-outlined">military_tech</span>
-                <span class="nav-text">Badges</span>
-            </button>
-            <button class="nav-btn" onclick="switchTab('leaderboard')" title="Task Tracker">
-                <span class="material-symbols-outlined">monitoring</span>
-                <span class="nav-text">Task Tracker</span>
-            </button>
-            <button class="nav-btn" onclick="switchTab('global-rankings')" title="Global Rankings"
-                id="nav-global-rankings">
-                <span class="material-symbols-outlined">emoji_events</span>
-                <span class="nav-text">Global Rankings</span>
-            </button>
-            <button class="nav-btn" onclick="switchTab('pricing')" title="Upgrade Plan" id="nav-pricing">
-                <span class="material-symbols-outlined">workspace_premium</span>
-                <span class="nav-text">Upgrade</span>
-            </button>
-            <button class="nav-btn" onclick="switchTab('about')" title="About Us">
-                <span class="material-symbols-outlined">groups</span>
-                <span class="nav-text">About Us</span>
-            </button>
-        </div>
 
-        <!-- Inventory Panel -->
-        <div class="sidebar-inventory" id="sidebar-inventory">
-            <button class="inventory-toggle" onclick="toggleInventoryPanel()">
-                <span>🎒 INVENTORY</span>
-                <span id="inventory-arrow">▼</span>
-            </button>
-            <div class="inventory-body" id="inventory-body">
-                <div class="inventory-themes" id="inventory-themes">
-                    <div class="inventory-empty">No themes yet.<br>Complete tasks to find loot!</div>
-                </div>
+            <!-- ── TASKS ─────────────────────────────── -->
+            <div class="nav-group">
+                <span class="nav-group-label">Tasks</span>
+                <button class="nav-btn active" data-tab="create" onclick="switchTab('create')" title="Create Task">
+                    <span class="material-symbols-outlined">edit_square</span>
+                    <span class="nav-text">Create Task</span>
+                </button>
+                <button class="nav-btn" data-tab="ongoing" onclick="switchTab('ongoing')" title="Ongoing Task">
+                    <span class="material-symbols-outlined">avg_pace</span>
+                    <span class="nav-text">Ongoing</span>
+                </button>
+                <button class="nav-btn" data-tab="finished" onclick="switchTab('finished')" title="Finished Task">
+                    <span class="material-symbols-outlined">task_alt</span>
+                    <span class="nav-text">Finished</span>
+                </button>
+                <button class="nav-btn" data-tab="planning" onclick="switchTab('planning')" title="Plan Maker">
+                    <span class="material-symbols-outlined">calendar_month</span>
+                    <span class="nav-text">Plan Maker</span>
+                </button>
             </div>
+
+            <!-- ── JOURNEY ────────────────────────────── -->
+            <div class="nav-group">
+                <span class="nav-group-label">Journey</span>
+                <button class="nav-btn" data-tab="leaderboard" onclick="switchTab('leaderboard')" title="Task Tracker">
+                    <span class="material-symbols-outlined">monitoring</span>
+                    <span class="nav-text">Progress</span>
+                </button>
+                <button class="nav-btn" data-tab="badges" onclick="switchTab('badges')" title="Badges">
+                    <span class="material-symbols-outlined">military_tech</span>
+                    <span class="nav-text">Achievements</span>
+                </button>
+                <button class="nav-btn" data-tab="global-rankings" onclick="switchTab('global-rankings')" title="Global Rankings"
+                    id="nav-global-rankings">
+                    <span class="material-symbols-outlined">emoji_events</span>
+                    <span class="nav-text">Leaderboard</span>
+                </button>
+            </div>
+
+            <!-- ── ACCOUNT ────────────────────────────── -->
+            <div class="nav-group">
+                <span class="nav-group-label">Account</span>
+                <button class="nav-btn" data-tab="pricing" onclick="switchTab('pricing')" title="Upgrade Plan" id="nav-pricing">
+                    <span class="material-symbols-outlined">workspace_premium</span>
+                    <span class="nav-text">Upgrade</span>
+                </button>
+                <button class="nav-btn nav-btn--inventory" onclick="toggleInventoryPanel()" title="Inventory">
+                    <span class="material-symbols-outlined">backpack</span>
+                    <span class="nav-text">Inventory</span>
+                    <span class="nav-inventory-arrow" id="nav-inventory-arrow">▾</span>
+                </button>
+                <!-- Inline inventory body — lives inside the nav group now -->
+                <div class="nav-inventory-body" id="inventory-body">
+                    <div class="inventory-themes" id="inventory-themes">
+                        <div class="inventory-empty">No themes yet.<br>Complete tasks to find loot!</div>
+                    </div>
+                </div>
+                <button class="nav-btn" data-tab="about" onclick="switchTab('about')" title="About Us">
+                    <span class="material-symbols-outlined">groups</span>
+                    <span class="nav-text">About Us</span>
+                </button>
+            </div>
+
         </div>
 
         <!-- Level System at Bottom -->
@@ -514,7 +555,7 @@
                         </div>
                         <div class="char-info">
                             <div class="char-name">Syahrul R.</div>
-                            <div class="char-role">The Wildcard</div>
+                            <div class="char-role">The Mindmain</div>
                             <div class="char-stat">★ CHR &nbsp;♥ STR &nbsp;☆ VIT</div>
                         </div>
                     </div>
@@ -550,8 +591,9 @@
 
         <!-- ═══ ENHANCED MUSIC PLAYER ═══ -->
         <div id="audio-player-container">
-            <div class="audio-player-header" onclick="toggleAudioPlayer()">
-                <h4>Music Player</h4>
+            <div class="audio-player-header" onclick="toggleAudioPlayer()" role="button" aria-label="Toggle music player" title="Click to minimize/maximize">
+                <h4>🎵 Music Player</h4>
+                <span class="player-minimize-icon" id="player-minimize-icon" aria-hidden="true">▼</span>
             </div>
 
             <div class="audio-player-content">

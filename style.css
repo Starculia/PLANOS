@@ -1,7 +1,57 @@
+/* ═══════════════════════════════════════════════════════════
+   PLANOS — CSS VARIABLES FOR RESPONSIVE SCALING
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+    /* Spacing */
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 1rem;
+    --spacing-lg: 1.5rem;
+    --spacing-xl: 2rem;
+    
+    /* Typography */
+    --font-size-xs: 0.65rem;
+    --font-size-sm: 0.75rem;
+    --font-size-md: 0.875rem;
+    --font-size-lg: 1rem;
+    --font-size-xl: 1.25rem;
+    
+    /* Touch targets */
+    --touch-target-min: 44px;
+    
+    /* Layout */
+    --sidebar-width: 280px;
+    --bottom-nav-height: 0px; /* 0 on desktop, 70px on mobile */
+}
+
+/* Mobile overrides */
+@media (max-width: 768px) {
+    :root {
+        --spacing-xs: 0.2rem;
+        --spacing-sm: 0.4rem;
+        --spacing-md: 0.75rem;
+        --spacing-lg: 1rem;
+        --spacing-xl: 1.5rem;
+        
+        --font-size-xs: 0.6rem;
+        --font-size-sm: 0.7rem;
+        --font-size-md: 0.8rem;
+        --font-size-lg: 0.9rem;
+        --font-size-xl: 1.1rem;
+        
+        --sidebar-width: 0px;
+        --bottom-nav-height: 70px;
+    }
+}
+
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    /* Optimize touch interactions */
+    -webkit-tap-highlight-color: rgba(167, 139, 250, 0.3);
+    touch-action: manipulation;
 }
 
 #container {
@@ -599,6 +649,7 @@ textarea {
     border-right: 2px solid rgba(230, 235, 254, 0.1);
     display: flex;
     flex-direction: column;
+    overflow: hidden; /* nothing bleeds out of the sidebar */
     transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 1000;
     box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
@@ -670,6 +721,8 @@ textarea {
     margin-left: 280px;
     background: transparent;
     transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    padding-bottom: var(--bottom-nav-height); /* Space for bottom nav on mobile */
+    min-height: 100vh;
 }
 
 .main-wrapper.minimized {
@@ -686,10 +739,15 @@ textarea {
 
 .sidebar-nav {
     flex: 1;
+    min-height: 0;        /* critical: lets flex child shrink below its content size */
     padding: 1.5rem 0;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    overflow-y: auto;     /* nav scrolls if screen is very short */
+    overflow-x: hidden;
+    /* hide scrollbar visually — nav scroll is a last resort, not primary UX */
+    scrollbar-width: none;
 }
 
 .nav-btn {
@@ -734,13 +792,7 @@ textarea {
     transform: translateX(6px) scale(1.02);
 }
 
-.nav-btn.active {
-    background: rgba(230, 235, 254, 0.15);
-    color: rgba(230, 235, 254, 1);
-    border-left-color: rgba(230, 235, 254, 0.8);
-    box-shadow: 0 0 15px rgba(230, 235, 254, 0.2);
-    transform: translateX(3px) scale(1.02);
-}
+/* active state is defined in the nav-groups section below */
 
 .nav-btn .material-symbols-outlined {
     font-size: 1.2rem;
@@ -758,11 +810,178 @@ textarea {
     border-left-color: rgba(230, 235, 254, 0.8);
 }
 
+/* ═══════════════════════════════════════════════════════════
+   MOBILE BOTTOM NAVIGATION BAR
+   ═══════════════════════════════════════════════════════════ */
+
+.bottom-nav {
+    display: none; /* Hidden on desktop */
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--bottom-nav-height);
+    background: rgba(13, 13, 13, 0.95);
+    backdrop-filter: blur(20px);
+    border-top: 2px solid rgba(167, 139, 250, 0.2);
+    z-index: 2000; /* Highest UI layer — always above music player & sidebar */
+    padding: 0.5rem 0;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.bottom-nav-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    background: transparent;
+    border: none;
+    color: rgba(230, 235, 254, 0.6);
+    cursor: pointer;
+    padding: 0.4rem;
+    min-height: var(--touch-target-min);
+    min-width: var(--touch-target-min);
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.bottom-nav-btn .material-symbols-outlined {
+    font-size: 1.5rem;
+}
+
+.bottom-nav-label {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.35rem;
+    letter-spacing: 0.02em;
+}
+
+.bottom-nav-btn:active {
+    transform: scale(0.95);
+    background: rgba(167, 139, 250, 0.1);
+}
+
+.bottom-nav-btn.active {
+    color: #a78bfa;
+}
+
+.bottom-nav-btn.active .material-symbols-outlined {
+    text-shadow: 0 0 8px rgba(167, 139, 250, 0.8);
+}
+
+/* Show bottom nav on mobile */
+@media (max-width: 768px) {
+    .bottom-nav {
+        display: flex;
+    }
+}
+
+/* ─── Nav Groups ─────────────────────────────────────────────── */
+
+.nav-group {
+    display: flex;
+    flex-direction: column;
+    /* gap between buttons inside a group */
+    gap: 0.1rem;
+    /* space between groups */
+    padding-bottom: 0.6rem;
+    margin-bottom: 0.2rem;
+    /* subtle divider under each group */
+    border-bottom: 1px solid rgba(230, 235, 254, 0.07);
+}
+
+.nav-group:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+}
+
+/* ALL-CAPS dimmed category label */
+.nav-group-label {
+    display: block;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.38rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(167, 139, 250, 0.45);   /* muted purple */
+    padding: 0.7rem 1.5rem 0.3rem;
+    pointer-events: none;
+    user-select: none;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+/* Hide labels when sidebar is minimised */
+.sidebar.minimized .nav-group-label {
+    display: none;
+}
+
+/* Hide group dividers when minimised — icons only, no visual noise */
+.sidebar.minimized .nav-group {
+    border-bottom: none;
+    padding-bottom: 0.3rem;
+    margin-bottom: 0;
+}
+
+/* ── Active state: purple glow + left accent ── */
+.nav-btn.active {
+    background: rgba(167, 139, 250, 0.12);
+    color: #c4b5fd;
+    border-left-color: #a78bfa;
+    box-shadow:
+        inset 0 0 20px rgba(167, 139, 250, 0.08),
+        0 0 12px rgba(167, 139, 250, 0.15);
+    transform: translateX(3px) scale(1.01);
+}
+
+.nav-btn.active .material-symbols-outlined {
+    color: #a78bfa;
+    text-shadow: 0 0 8px rgba(167, 139, 250, 0.8);
+}
+
+/* ─── Inventory inside nav group ─────────────────────────────── */
+
+/* The inventory button has an extra arrow indicator */
+.nav-btn--inventory {
+    position: relative;
+}
+
+.nav-inventory-arrow {
+    margin-left: auto;
+    font-size: 0.6rem;
+    color: rgba(167, 139, 250, 0.5);
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+}
+
+.nav-inventory-arrow.open {
+    transform: rotate(180deg);
+}
+
+/* Collapsible inventory body — now lives inside the nav */
+.nav-inventory-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease;
+}
+
+.nav-inventory-body.open {
+    max-height: 160px;
+    overflow: hidden;
+}
+
+/* Hide inventory in minimised mode */
+.sidebar.minimized .nav-btn--inventory,
+.sidebar.minimized .nav-inventory-body {
+    display: none;
+}
+
 /* ─── Sidebar Level Card ─────────────────────────────────────── */
 .sidebar-level {
-    padding: 1rem 0.8rem 1.2rem;
+    flex-shrink: 0;       /* never compress — always fully visible */
+    padding: 1rem 0.8rem 1.4rem; /* extra bottom pad clears browser taskbar */
     border-top: 1px solid rgba(230,235,254,0.12);
-    margin-top: auto;
     position: relative;
     overflow: hidden;
     background: linear-gradient(160deg,
@@ -795,9 +1014,11 @@ textarea {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 0.55rem;
     position: relative;
     z-index: 1;
+    width: 100%; /* fill the card */
 }
 
 /* ── Level Ring ── */
@@ -891,7 +1112,11 @@ textarea {
 }
 
 /* ── XP Bar ── */
-.xp-bar-wrap { width: 100%; }
+.xp-bar-wrap {
+    width: 80%;          /* centered, not edge-to-edge */
+    max-width: 220px;    /* cap on wide sidebars */
+    align-self: center;  /* belt-and-suspenders centering */
+}
 
 .xp-bar-track {
     width: 100%;
@@ -1022,7 +1247,7 @@ textarea {
     }
 
     .sidebar-level {
-        padding: 0.7rem 0.6rem 1rem;
+        padding: 0.7rem 0.6rem 1.2rem;
     }
 
     .level-ring-wrap {
@@ -1075,7 +1300,7 @@ textarea {
     }
 
     .sidebar-level {
-        padding: 0.5rem 0.4rem 0.8rem;
+        padding: 0.5rem 0.4rem 1rem;
     }
 
     .level-ring-wrap {
@@ -2302,10 +2527,11 @@ button:active {
     padding: 15px;
     border-radius: 15px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
-    z-index: 999;
+    z-index: 500; /* Below sidebar (1000) and bottom-nav (2000) */
     max-width: 350px;
     border: 2px solid rgba(230, 235, 254, 0.3);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Smooth transition for all state changes including minimize */
+    transition: all 0.3s ease;
 }
 
 /* Planning Section */
@@ -2314,6 +2540,9 @@ button:active {
     grid-template-columns: 1fr 1fr;
     gap: 2rem;
     padding: 1rem;
+    box-sizing: border-box;
+    max-width: 100%;
+    width: 100%;
 }
 
 .calendar-section {
@@ -2409,6 +2638,9 @@ button:active {
     padding: 1.5rem;
     border-radius: 12px;
     border: 1px solid rgba(230, 235, 254, 0.2);
+    box-sizing: border-box;
+    max-width: 100%;
+    overflow: hidden;
 }
 
 .plans-grid {
@@ -2418,6 +2650,8 @@ button:active {
     max-height: 400px;
     overflow-y: auto;
     padding: 1rem;
+    box-sizing: border-box;
+    max-width: 100%;
 }
 
 .plan-card {
@@ -2506,23 +2740,42 @@ button:active {
 
 .audio-player-header {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
     cursor: pointer;
     padding: 5px;
     border-radius: 5px;
     transition: background 0.2s ease;
+    user-select: none;
 }
 
 .audio-player-header:hover {
     background: rgba(230, 235, 254, 0.1);
 }
 
+/* Minimize chevron icon */
+.player-minimize-icon {
+    font-size: 0.65rem;
+    color: rgba(230, 235, 254, 0.6);
+    transition: transform 0.3s ease, color 0.2s ease;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.audio-player-header:hover .player-minimize-icon {
+    color: rgba(230, 235, 254, 1);
+}
+
+/* Rotate chevron when minimized */
+#audio-player-container.minimized .player-minimize-icon {
+    transform: rotate(180deg);
+}
+
 .audio-player-content {
     transition: opacity 0.3s ease, max-height 0.3s ease;
     opacity: 1;
-    max-height: 200px;
+    max-height: 300px; /* generous cap so content never clips */
     overflow: hidden;
 }
 
@@ -2535,22 +2788,22 @@ button:active {
     background: rgba(230, 235, 254, 0.2);
 }
 
+/* Hide controls completely when minimized — prevents layout bleed */
 #audio-player-container.minimized .audio-player-content {
-    opacity: 0;
-    max-height: 0;
-    margin: 0;
-    padding: 0;
+    display: none;
 }
 
 #audio-player-container.minimized {
     max-width: 200px;
-    padding: 10px;
+    padding: 10px 14px;
     cursor: pointer;
     position: fixed !important;
     bottom: 20px !important;
     right: 20px !important;
     top: auto !important;
     left: auto !important;
+    /* Override the hover lift so the pill stays put */
+    transform: none !important;
 }
 
 #audio-player-container.minimized h4 {
@@ -2561,6 +2814,25 @@ button:active {
 #audio-player-container.minimized:hover {
     background: rgba(0, 0, 0, 0.8);
     border-color: rgba(230, 235, 254, 0.5);
+    /* No translateY on the minimized pill */
+    transform: none !important;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.8);
+}
+
+/* ── Mobile: lift player above the bottom nav ── */
+@media (max-width: 768px) {
+    #audio-player-container {
+        bottom: calc(var(--bottom-nav-height) + 12px);
+        right: 12px;
+        max-width: calc(100vw - 24px);
+    }
+
+    #audio-player-container.minimized {
+        bottom: calc(var(--bottom-nav-height) + 8px) !important;
+        right: 12px !important;
+        max-width: 180px;
+        padding: 8px 12px;
+    }
 }
 
 audio {
@@ -2684,13 +2956,17 @@ audio {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
+    /* Use 100vw/100vh — immune to parent overflow-x:hidden clipping */
+    width: 100vw;
+    height: 100vh;
     background: rgba(0, 0, 0, 0.8);
     z-index: 10000;
     align-items: center;
     justify-content: center;
     animation: fadeIn 0.3s ease;
+    /* Ensure the overlay itself never gets clipped */
+    overflow: visible;
+    box-sizing: border-box;
 }
 
 .notification-modal.show {
@@ -2741,9 +3017,12 @@ audio {
     padding: 40px;
     border-radius: 15px;
     border: 2px solid rgba(230, 235, 254, 1);
+    width: 90%;
     max-width: 400px;
     text-align: center;
     box-shadow: 0 10px 40px rgba(230, 235, 254, 0.5);
+    box-sizing: border-box;
+    position: relative;
 }
 
 .notification-content.plan-notification {
@@ -2797,8 +3076,11 @@ audio {
 /* Authentication Notification - Distinct Styling */
 .auth-notification {
     background: linear-gradient(135deg, rgba(13, 13, 13, 0.95), rgba(26, 26, 26, 0.95));
-    border: 2px solid rgba(250, 212, 100, 0.5);
-    box-shadow: 0 10px 40px rgba(250, 212, 100, 0.3);
+    border: 2px solid #f59e0b; /* Gold border as requested */
+    box-shadow: 0 10px 40px rgba(245, 158, 11, 0.35);
+    width: 90%;
+    max-width: 350px;
+    box-sizing: border-box;
 }
 
 .auth-notification h2 {
@@ -3290,6 +3572,59 @@ audio {
     }
 }
 
+/* ── FIX 2: Auth modal perfectly centered on mobile ── */
+@media (max-width: 768px) {
+    .auth-modal {
+        /* Ensure the backdrop covers the full viewport */
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        background: rgba(0, 0, 0, 0.85);
+        /* Use flex centering — most reliable cross-browser approach */
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        box-sizing: border-box;
+    }
+
+    .auth-modal.show {
+        display: flex;
+    }
+
+    .auth-content {
+        /* Remove any transform that could shift it off-center */
+        position: relative;
+        top: auto;
+        left: auto;
+        transform: none;
+        width: 100%;
+        max-width: 380px;
+        max-height: 90vh;
+        overflow-y: auto;
+        margin: 0 auto;
+        box-sizing: border-box;
+        padding: 1.5rem;
+        /* Scrollbar styling */
+        scrollbar-width: thin;
+        scrollbar-color: #a78bfa transparent;
+    }
+
+    .auth-modal.show .auth-content {
+        /* Override the scale animation — just fade in on mobile */
+        transform: none;
+        opacity: 1;
+    }
+
+    .auth-header h2 {
+        font-size: 1rem;
+    }
+
+    .auth-header p {
+        font-size: 0.55rem;
+    }
+}
+
 
 .achievement-modal {
     display: none;
@@ -3732,6 +4067,14 @@ audio {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 1.2rem;
+}
+
+/* Mobile: stack into single column */
+@media (max-width: 768px) {
+    .leaderboard-grid {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+    }
 }
 
 .leaderboard-panel {
@@ -4661,10 +5004,11 @@ body.shake-active {
 .burst-particle:nth-child(4n)   { background: #80d0ff; box-shadow: 0 0 6px rgba(128, 208, 255, 0.9); width: 12px; height: 12px; }
 
 /* ── Sidebar Inventory Panel ── */
+/* The old standalone .sidebar-inventory block is replaced by
+   .nav-inventory-body inside the nav group. These rules are kept
+   only for backwards-compat with any theme overrides. */
 .sidebar-inventory {
-    border-top: 1px solid rgba(230, 235, 254, 0.08);
-    border-bottom: 1px solid rgba(230, 235, 254, 0.08);
-    overflow: hidden;
+    display: none; /* no longer rendered in HTML */
 }
 
 .inventory-toggle {
@@ -4700,15 +5044,42 @@ body.shake-active {
 }
 
 .inventory-body.open {
-    max-height: 200px;
+    /* cap at ~3 theme chips; the inner list scrolls beyond that */
+    max-height: 160px;
+    overflow: hidden;
 }
 
+/* ── Scrollable theme list inside inventory ── */
 .inventory-themes {
     padding: 0.5rem 1rem 0.75rem;
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+    max-height: 140px;    /* fits ~3 chips; scroll for more */
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    /* thin purple scrollbar — Firefox */
+    scrollbar-width: thin;
+    scrollbar-color: #a78bfa rgba(139, 92, 246, 0.1);
 }
+
+/* thin purple scrollbar — Chrome / Edge / Safari */
+.inventory-themes::-webkit-scrollbar {
+    width: 4px;
+}
+.inventory-themes::-webkit-scrollbar-track {
+    background: rgba(139, 92, 246, 0.08);
+    border-radius: 99px;
+}
+.inventory-themes::-webkit-scrollbar-thumb {
+    background: #a78bfa;
+    border-radius: 99px;
+}
+.inventory-themes::-webkit-scrollbar-thumb:hover {
+    background: #c4b5fd;
+}
+
 
 .inventory-empty {
     font-family: 'Press Start 2P', cursive;
@@ -5742,3 +6113,798 @@ body.theme-gold .sidebar-inventory {
         grid-template-columns: 1fr;
     }
 }
+
+
+/* ═══════════════════════════════════════════════════════════
+   COMPREHENSIVE MOBILE RESPONSIVE CSS
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── TABLET (768px and below) ────────────────────────────── */
+@media (max-width: 768px) {
+    
+    /* Hide desktop sidebar completely */
+    .sidebar {
+        transform: translateX(-100%);
+        width: 280px;
+        z-index: 10000;
+    }
+    
+    /* Show sidebar when hamburger menu is clicked */
+    .sidebar.open {
+        transform: translateX(0);
+        box-shadow: 4px 0 30px rgba(0, 0, 0, 0.7);
+    }
+    
+    /* Main content takes full width */
+    .main-wrapper {
+        margin-left: 0 !important;
+        padding-bottom: 80px; /* Space for bottom nav */
+    }
+    
+    /* Container adjustments */
+    .container {
+        padding: var(--spacing-md);
+        max-width: 100%;
+    }
+    
+    /* Touch-friendly buttons */
+    button, .btn, .nav-btn, .bottom-nav-btn {
+        min-height: var(--touch-target-min);
+        min-width: var(--touch-target-min);
+        padding: var(--spacing-sm) var(--spacing-md);
+    }
+    
+    /* Task cards full width */
+    .task-item {
+        width: 100%;
+        margin-bottom: var(--spacing-md);
+    }
+    
+    /* Leaderboard panels full width */
+    .leaderboard-panel {
+        width: 100%;
+        margin-bottom: var(--spacing-md);
+    }
+    
+    /* Pricing cards stack */
+    .pricing-grid {
+        grid-template-columns: 1fr !important;
+        gap: var(--spacing-md);
+    }
+    
+    .pricing-card {
+        max-width: 100%;
+    }
+    
+    /* Badges grid responsive */
+    .badges-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+        gap: var(--spacing-sm);
+    }
+    
+    /* Plans grid responsive */
+    .plans-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    /* Header adjustments */
+    header {
+        padding: var(--spacing-sm) var(--spacing-md);
+    }
+    
+    header h1 {
+        font-size: 1.2rem;
+    }
+    
+    /* Auth dropdown */
+    .auth-dropdown-btn {
+        font-size: var(--font-size-sm);
+        padding: var(--spacing-xs) var(--spacing-sm);
+    }
+    
+    /* Form inputs */
+    input, textarea, select {
+        font-size: var(--font-size-md);
+        padding: var(--spacing-sm);
+    }
+    
+    /* Tab content */
+    .tab-content h2, .tab-content h3 {
+        font-size: var(--font-size-lg);
+        margin-bottom: var(--spacing-md);
+    }
+    
+    /* Insights grid */
+    .insights-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: var(--spacing-sm);
+    }
+    
+    /* Character grid (About page) */
+    .char-grid {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+    }
+    
+    /* Global rankings */
+    .global-rankings-list {
+        padding: var(--spacing-sm);
+    }
+    
+    .rank-card {
+        padding: var(--spacing-sm);
+    }
+    
+    /* Music player adjustments — full overrides in FIX 4B block below */
+    #audio-player-container {
+        bottom: 80px; /* Above bottom nav */
+        width: calc(100% - 2rem);
+        left: 1rem;
+        right: 1rem;
+    }
+    
+    /* Modal adjustments */
+    .auth-modal-content,
+    .qris-modal {
+        width: 95%;
+        max-width: 400px;
+        padding: var(--spacing-lg);
+    }
+    
+    /* Notification adjustments — width/max-width apply to the CARD, not the overlay */
+    .notification-content {
+        width: 90%;
+        max-width: 350px;
+    }
+    
+    /* Level indicator — full overrides in FIX 4A block below */
+    .level-ring-wrap {
+        width: 60px;
+        height: 60px;
+    }
+    
+    .level-num {
+        font-size: 1rem;
+    }
+}
+
+/* ── MOBILE (480px and below) ───────────────────────────── */
+@media (max-width: 480px) {
+    
+    /* Even more compact spacing */
+    :root {
+        --spacing-xs: 0.15rem;
+        --spacing-sm: 0.3rem;
+        --spacing-md: 0.6rem;
+        --spacing-lg: 0.8rem;
+        --spacing-xl: 1.2rem;
+        
+        --font-size-xs: 0.55rem;
+        --font-size-sm: 0.65rem;
+        --font-size-md: 0.75rem;
+        --font-size-lg: 0.85rem;
+        --font-size-xl: 1rem;
+    }
+    
+    /* Bottom nav more compact */
+    .bottom-nav {
+        height: 60px;
+        padding: 0.3rem 0;
+    }
+    
+    .bottom-nav-btn .material-symbols-outlined {
+        font-size: 1.3rem;
+    }
+    
+    .bottom-nav-label {
+        font-size: 0.3rem;
+    }
+    
+    /* Main wrapper */
+    .main-wrapper {
+        padding-bottom: 70px;
+    }
+    
+    /* Container */
+    .container {
+        padding: var(--spacing-sm);
+    }
+    
+    /* Insights grid single column on very small screens */
+    .insights-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    /* Task cards more compact */
+    .task-item {
+        padding: var(--spacing-sm);
+    }
+    
+    /* Leaderboard panels more compact */
+    .leaderboard-panel {
+        padding: var(--spacing-sm);
+    }
+    
+    .leaderboard-panel-header {
+        font-size: var(--font-size-xs);
+    }
+    
+    /* Pricing cards */
+    .pricing-card {
+        padding: var(--spacing-md);
+    }
+    
+    /* Character cards */
+    .char-card {
+        padding: var(--spacing-sm);
+    }
+    
+    /* Music player even smaller */
+    #audio-player-container {
+        bottom: 70px;
+    }
+    
+    /* Modals */
+    .auth-modal-content,
+    .qris-modal {
+        width: 98%;
+        padding: var(--spacing-md);
+    }
+    
+    /* Header */
+    header h1 {
+        font-size: 1rem;
+    }
+    
+    /* Sidebar when open */
+    .sidebar {
+        width: 260px;
+    }
+    
+    /* Level ring smaller */
+    .level-ring-wrap {
+        width: 50px;
+        height: 50px;
+    }
+    
+    .level-num {
+        font-size: 0.9rem;
+    }
+}
+
+/* ── LANDSCAPE MOBILE ───────────────────────────────────── */
+@media (max-width: 768px) and (orientation: landscape) {
+    
+    /* Sidebar full height */
+    .sidebar {
+        height: 100vh;
+    }
+    
+    /* Bottom nav slightly smaller */
+    .bottom-nav {
+        height: 55px;
+    }
+    
+    .bottom-nav-btn .material-symbols-outlined {
+        font-size: 1.2rem;
+    }
+    
+    .bottom-nav-label {
+        font-size: 0.3rem;
+    }
+    
+    /* Main wrapper */
+    .main-wrapper {
+        padding-bottom: 60px;
+    }
+    
+    /* Music player */
+    #audio-player-container {
+        bottom: 60px;
+    }
+}
+
+/* ── TOUCH OPTIMIZATION ─────────────────────────────────── */
+
+/* Ensure all interactive elements are touch-friendly */
+@media (hover: none) and (pointer: coarse) {
+    
+    /* Increase touch targets */
+    button, a, .nav-btn, .bottom-nav-btn, .btn {
+        min-height: 48px;
+        min-width: 48px;
+    }
+    
+    /* Remove hover effects on touch devices */
+    .nav-btn:hover::before {
+        display: none;
+    }
+    
+    /* Use active states instead */
+    .nav-btn:active,
+    .btn:active,
+    button:active {
+        transform: scale(0.97);
+        opacity: 0.9;
+    }
+    
+    /* Larger tap areas for small icons */
+    .material-symbols-outlined {
+        padding: 4px;
+    }
+}
+
+/* ── BACKGROUND THEME SCALING ───────────────────────────── */
+
+/* Ensure background circles scale properly on mobile */
+@media (max-width: 768px) {
+    
+    #circle-small {
+        width: 200px;
+        height: 200px;
+        bottom: 100px;
+        right: -100px;
+    }
+    
+    #circle-medium {
+        width: 300px;
+        height: 300px;
+        bottom: -50px;
+        right: -150px;
+    }
+    
+    #circle-large {
+        width: 400px;
+        height: 400px;
+        top: -100px;
+        left: -200px;
+    }
+    
+    #circle-xlarge {
+        width: 500px;
+        height: 500px;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+    
+    #circle-xxlarge {
+        width: 600px;
+        height: 600px;
+        bottom: -200px;
+        left: -300px;
+    }
+}
+
+@media (max-width: 480px) {
+    
+    #circle-small {
+        width: 150px;
+        height: 150px;
+    }
+    
+    #circle-medium {
+        width: 250px;
+        height: 250px;
+    }
+    
+    #circle-large {
+        width: 350px;
+        height: 350px;
+    }
+    
+    #circle-xlarge {
+        width: 400px;
+        height: 400px;
+    }
+    
+    #circle-xxlarge {
+        width: 500px;
+        height: 500px;
+    }
+}
+
+/* ── XP BAR MOBILE VISIBILITY ───────────────────────────── */
+
+/* Keep XP bar visible but compact on mobile */
+@media (max-width: 768px) {
+    
+    /* sidebar-level positioning is handled in the FIX 4A block at the end of this file */
+    /* (kept here as a placeholder to avoid breaking the cascade order) */
+}
+
+/* ── MUSIC PLAYER MOBILE ────────────────────────────────── */
+/* Full overrides are in the FIX 4B block at the end of this file */
+@media (max-width: 768px) {
+    
+    .audio-controls {
+        gap: var(--spacing-xs);
+    }
+    
+    .audio-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 1rem;
+    }
+    
+    .track-info {
+        font-size: var(--font-size-xs);
+    }
+}
+
+/* ── PREVENT HORIZONTAL SCROLL ──────────────────────────── */
+
+@media (max-width: 768px) {
+    
+    body {
+        overflow-x: hidden;
+        max-width: 100vw;
+    }
+    
+    .main-wrapper,
+    .container,
+    .tab-content {
+        max-width: 100vw;
+        overflow-x: hidden;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE FIXES — TYPOGRAPHY, MODALS, LAYOUT, PLAYER, LEVEL
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 1. TYPOGRAPHY SCALING ──────────────────────────────── */
+
+@media (max-width: 768px) {
+
+    h2, .tab-content h2 {
+        font-size: 0.85rem !important;
+        line-height: 1.5;
+    }
+    h3, .tab-content h3 {
+        font-size: 0.75rem !important;
+        line-height: 1.5;
+    }
+    h4, .tab-content h4 {
+        font-size: 0.65rem !important;
+        line-height: 1.5;
+    }
+
+    /* Notification / Welcome Back modal text */
+    .notification-content h2,
+    .auth-notification h2 {
+        font-size: 0.75rem !important;
+        line-height: 1.6 !important;
+        margin-bottom: 0.8rem !important;
+    }
+    .notification-content p,
+    .auth-notification p {
+        font-size: 0.6rem !important;
+        line-height: 1.7 !important;
+        margin-bottom: 1rem !important;
+    }
+    .notification-content button,
+    .auth-notification button {
+        font-size: 0.6rem !important;
+        padding: 0.7rem 1.5rem !important;
+        min-height: 44px !important;
+    }
+
+    .auth-header h2       { font-size: 1rem !important; }
+    .pricing-header h3    { font-size: 0.75rem !important; }
+    .pricing-name         { font-size: 0.65rem !important; }
+    .pricing-price        { font-size: 1rem !important; }
+    .about-title          { font-size: 1rem !important; line-height: 1.6; }
+    .lb-tier-name         { font-size: 0.6rem !important; }
+    .nav-group-label      { font-size: 0.32rem !important; }
+    .nav-btn              { font-size: 0.55rem !important; }
+    .bottom-nav-label     { font-size: 0.3rem !important; }
+    .form-group label     { font-size: 0.55rem !important; }
+    .insight-value        { font-size: 1.1rem !important; }
+    .insight-label        { font-size: 0.45rem !important; }
+
+    /* 16px prevents iOS Safari auto-zoom on input focus */
+    .form-group input,
+    .form-group textarea,
+    .form-group select,
+    input, textarea, select,
+    .plan-date-input,
+    .plan-time-input {
+        font-size: 16px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    h2, .tab-content h2   { font-size: 0.75rem !important; }
+    h3, .tab-content h3   { font-size: 0.65rem !important; }
+    h4, .tab-content h4   { font-size: 0.55rem !important; }
+    .about-title          { font-size: 0.8rem !important; }
+    .pricing-price        { font-size: 0.85rem !important; }
+
+    .notification-content h2,
+    .auth-notification h2 {
+        font-size: 0.65rem !important;
+    }
+}
+
+/* ── 2. WELCOME BACK MODAL — PERFECT CENTERING ──────────── */
+
+@media (max-width: 768px) {
+
+    /* The overlay already uses position:fixed + flex centering.
+       Force it to cover the full viewport above the bottom nav. */
+    .notification-modal {
+        z-index: 5000 !important; /* above bottom-nav (2000) and sidebar (1000) */
+        padding: 1rem;
+        box-sizing: border-box;
+        /* Ensure flex centering is active */
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+    .notification-modal.show {
+        display: flex !important;
+    }
+
+    /* The card itself: responsive width, gold border, centered */
+    .notification-content {
+        width: 90% !important;
+        max-width: 350px !important;
+        padding: 1.5rem !important;
+        box-sizing: border-box !important;
+        /* Prevent the card from being pushed off-screen */
+        margin: 0 auto !important;
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+        transform: none !important;
+    }
+
+    /* Gold border specifically on the auth (Welcome Back) notification */
+    .auth-notification {
+        border: 2px solid #f59e0b !important;
+        box-shadow: 0 8px 32px rgba(245, 158, 11, 0.4) !important;
+        width: 90% !important;
+        max-width: 350px !important;
+        padding: 1.5rem !important;
+        box-sizing: border-box !important;
+    }
+}
+
+/* ── 3. PLAN MAKER — PREVENT HORIZONTAL BLEED ───────────── */
+
+@media (max-width: 768px) {
+
+    .planning-container {
+        grid-template-columns: 1fr !important;
+        gap: 1rem !important;
+        padding: 0.5rem !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+    }
+
+    .calendar-section,
+    .plan-section,
+    .plans-list-section {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        padding: 1rem !important;
+        overflow: hidden !important;
+    }
+
+    .plans-grid {
+        grid-template-columns: 1fr !important;
+        padding: 0.5rem !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    .plan-card {
+        width: 100% !important;
+        box-sizing: border-box !important;
+        word-break: break-word !important;
+    }
+
+    .plan-date-input,
+    .plan-time-input {
+        width: 100% !important;
+        box-sizing: border-box !important;
+        max-width: 100% !important;
+    }
+
+    .notification-badges {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+}
+
+/* ── 4. LEVEL INDICATOR — INSIDE SIDEBAR, NEVER CUT OFF ─── */
+
+@media (max-width: 768px) {
+
+    /* Keep it in the sidebar's flex flow — NOT floating over the page */
+    .sidebar-level {
+        position: relative !important;
+        bottom: auto !important;
+        left: auto !important;
+        right: auto !important;
+        width: 100% !important;
+        z-index: auto !important;
+        display: block !important;
+        padding: 0.75rem 0.6rem 1rem !important;
+        flex-shrink: 0 !important;
+        background: linear-gradient(160deg,
+            rgba(20, 10, 50, 0.85) 0%,
+            rgba(10, 40, 80, 0.75) 100%) !important;
+        border-top: 1px solid rgba(167, 139, 250, 0.25) !important;
+    }
+
+    /* Horizontal compact layout: ring left, XP bar right */
+    .sidebar-level .level-container {
+        flex-direction: row !important;
+        justify-content: flex-start !important;
+        align-items: center !important;
+        gap: 0.75rem !important;
+        flex-wrap: nowrap !important;
+    }
+
+    .sidebar-level .level-ring-wrap {
+        width: 52px !important;
+        height: 52px !important;
+        flex-shrink: 0 !important;
+        animation: none !important; /* save battery on mobile */
+    }
+    .sidebar-level .level-ring-svg {
+        width: 52px !important;
+        height: 52px !important;
+    }
+    .sidebar-level .level-num {
+        font-size: 0.9rem !important;
+    }
+
+    .sidebar-level .xp-bar-wrap {
+        flex: 1 !important;
+        min-width: 0 !important;
+    }
+
+    /* Hide decorative elements to save space */
+    .sidebar-level .level-rank-row  { display: none !important; }
+    .sidebar-level #achievement-badges { display: none !important; }
+    .sidebar-level .level-particles { display: none !important; }
+
+    /* Sidebar flex structure: nav scrolls, level stays pinned at bottom */
+    .sidebar {
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+    }
+    .sidebar-nav {
+        flex: 1 !important;
+        min-height: 0 !important;
+        overflow-y: auto !important;
+    }
+}
+
+/* ── 5. MUSIC PLAYER — NEVER COVERS BOTTOM NAV ──────────── */
+
+/*
+   Z-INDEX LADDER (mobile):
+   bottom-nav          2000   ← always on top
+   notification-modal  5000   ← above everything when shown
+   music player (max)   800   ← below bottom-nav, above content
+   music player (min)  1500   ← pill floats above bottom-nav gap
+   sidebar            10000   ← slides over content when open
+*/
+
+@media (max-width: 768px) {
+
+    /* ── Expanded player: sits in the gap above the bottom nav ── */
+    #audio-player-container:not(.minimized) {
+        position: fixed !important;
+        /* 70px = bottom-nav height on mobile */
+        bottom: 72px !important;
+        left: 0.5rem !important;
+        right: 0.5rem !important;
+        width: auto !important;
+        max-width: none !important;
+        top: auto !important;
+        z-index: 800 !important; /* BELOW bottom-nav (2000) */
+        border-radius: 12px !important;
+    }
+
+    /* ── Minimized pill: small circle just above the bottom nav ── */
+    #audio-player-container.minimized {
+        position: fixed !important;
+        bottom: 78px !important; /* sits just above the bottom nav */
+        right: 0.75rem !important;
+        left: auto !important;
+        top: auto !important;
+
+        /* Circular pill */
+        width: 52px !important;
+        min-width: 52px !important;
+        max-width: 52px !important;
+        height: 52px !important;
+        padding: 0 !important;
+        border-radius: 50% !important;
+
+        /* Below bottom-nav but clearly visible */
+        z-index: 1500 !important;
+
+        background: rgba(13, 13, 13, 0.95) !important;
+        border: 2px solid rgba(167, 139, 250, 0.7) !important;
+        box-shadow: 0 0 14px rgba(167, 139, 250, 0.5) !important;
+
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer !important;
+        overflow: hidden !important;
+    }
+
+    /* Minimized header: full size, centered */
+    #audio-player-container.minimized .audio-player-header {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    /* Hide "Music Player" text, show 🎵 emoji instead */
+    #audio-player-container.minimized .audio-player-header h4 {
+        font-size: 0 !important;
+        margin: 0 !important;
+        line-height: 0 !important;
+    }
+    #audio-player-container.minimized .audio-player-header h4::before {
+        content: '🎵';
+        font-size: 1.4rem;
+        line-height: 1;
+        display: block;
+    }
+
+    /* Hide player content when minimized */
+    #audio-player-container.minimized .audio-player-content {
+        display: none !important;
+        opacity: 0 !important;
+        max-height: 0 !important;
+        overflow: hidden !important;
+    }
+}
+
+@media (max-width: 480px) {
+
+    #audio-player-container:not(.minimized) {
+        bottom: 64px !important;
+    }
+
+    #audio-player-container.minimized {
+        bottom: 68px !important;
+        right: 0.5rem !important;
+        width: 48px !important;
+        min-width: 48px !important;
+        max-width: 48px !important;
+        height: 48px !important;
+    }
+}
+
+/* ── Landscape: tighter bottom nav, player adjusts ── */
+@media (max-width: 768px) and (orientation: landscape) {
+
+    #audio-player-container:not(.minimized) {
+        bottom: 58px !important;
+    }
+
+    #audio-player-container.minimized {
+        bottom: 62px !important;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   END MOBILE FIXES
+   ═══════════════════════════════════════════════════════════ */

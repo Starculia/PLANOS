@@ -32,6 +32,42 @@ function toggleSidebar() {
 window.toggleMobileMenu = toggleMobileMenu;
 window.toggleSidebar = toggleSidebar;
 
+// --- Music Player Toggle (minimize / maximize) ---
+/**
+ * Toggles the music player between its full and minimized states.
+ * Uses display:none on the content when minimized to fully prevent
+ * any layout bleed from hidden controls (progress bar, buttons, etc.).
+ */
+function toggleAudioPlayer() {
+    const container = document.getElementById('audio-player-container');
+    if (!container) return;
+
+    const content = container.querySelector('.audio-player-content');
+    const isMinimized = container.classList.toggle('minimized');
+
+    // display:none is the only reliable way to prevent hidden controls
+    // from affecting layout — opacity/max-height alone can still cause issues
+    if (content) {
+        if (isMinimized) {
+            // Small delay so the CSS transition on the container fires first
+            setTimeout(() => { content.style.display = 'none'; }, 10);
+        } else {
+            content.style.display = '';
+        }
+    }
+
+    // Update aria-label for screen readers
+    const header = container.querySelector('.audio-player-header');
+    if (header) {
+        header.setAttribute(
+            'aria-label',
+            isMinimized ? 'Expand music player' : 'Minimize music player'
+        );
+    }
+}
+
+window.toggleAudioPlayer = toggleAudioPlayer;
+
 // --- Authentication Dropdown Functions ---
 function toggleAuthDropdown() {
     const dropdown = document.getElementById('auth-dropdown-menu');
@@ -583,14 +619,24 @@ function ensurePointsDisplayExists() {
 async function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
     document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.bottom-nav-btn').forEach(btn => btn.classList.remove('active'));
 
     const tabContent = document.getElementById(tabName + '-task');
     if (tabContent) tabContent.classList.add('active');
 
-    const buttons = document.querySelectorAll('.nav-btn');
-    const tabMap = { 'create': 0, 'ongoing': 1, 'finished': 2, 'planning': 3, 'badges': 4, 'leaderboard': 5, 'global-rankings': 6, 'pricing': 7, 'about': 8 };
-    const btnIndex = tabMap[tabName];
-    if (btnIndex !== undefined && buttons[btnIndex]) buttons[btnIndex].classList.add('active');
+    // Match by data-tab attribute — immune to button order / grouping changes
+    const activeBtn = document.querySelector(`.nav-btn[data-tab="${tabName}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+    
+    // Also update bottom nav
+    const activeBottomBtn = document.querySelector(`.bottom-nav-btn[data-tab="${tabName}"]`);
+    if (activeBottomBtn) activeBottomBtn.classList.add('active');
+    
+    // Close mobile sidebar after navigation
+    if (window.innerWidth <= 768) {
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar) sidebar.classList.remove('open');
+    }
 
     // Await the unified async render so the list is always populated before the tab is visible
     if (tabName === 'ongoing' || tabName === 'finished') await updateTaskDisplay();
@@ -2124,6 +2170,8 @@ function selectTrack(index) {
 
 function toggleAudioPlayer() {
     const container = document.getElementById('audio-player-container');
+    if (!container) return;
+
     if (container.classList.contains('minimized')) {
         container.classList.remove('minimized');
     } else {
@@ -2131,7 +2179,38 @@ function toggleAudioPlayer() {
     }
 }
 
-// Handle click on minimized container to restore
+// ── Music Player Recovery: ensures the minimized pill never drifts off-screen
+(function setupMusicPlayerRecovery() {
+    document.addEventListener('DOMContentLoaded', function () {
+        const container = document.getElementById('audio-player-container');
+        if (!container) return;
+
+        // Any click on the minimized pill restores the player
+        container.addEventListener('click', function (e) {
+            if (container.classList.contains('minimized')) {
+                container.classList.remove('minimized');
+                e.stopPropagation();
+            }
+        });
+
+        // Safety net: if player somehow ends up off-screen, reset its position
+        function ensurePlayerVisible() {
+            if (!container.classList.contains('minimized')) return;
+            const rect = container.getBoundingClientRect();
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile && (rect.bottom < 0 || rect.top > window.innerHeight)) {
+                // Reset to safe position above bottom nav
+                container.style.bottom = '78px';
+                container.style.right = '0.75rem';
+                container.style.left = 'auto';
+                container.style.top = 'auto';
+            }
+        }
+
+        window.addEventListener('resize', ensurePlayerVisible, { passive: true });
+        document.addEventListener('scroll', ensurePlayerVisible, { passive: true });
+    });
+}());
 document.addEventListener('DOMContentLoaded', function () {
     console.log('[PLANOS] DOMContentLoaded — init starting');
 
@@ -2844,11 +2923,11 @@ function renderInventory() {
 
 function toggleInventoryPanel() {
     const body = document.getElementById('inventory-body');
-    const arrow = document.getElementById('inventory-arrow');
+    const arrow = document.getElementById('nav-inventory-arrow');
     if (!body) return;
 
     const isOpen = body.classList.toggle('open');
-    if (arrow) arrow.style.transform = isOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+    if (arrow) arrow.classList.toggle('open', isOpen);
 }
 
 // ─── Supabase Sync (placeholder) ─────────────────────────────
