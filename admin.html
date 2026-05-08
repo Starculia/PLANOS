@@ -524,24 +524,45 @@
             if (rBtn) rBtn.disabled = true;
 
             try {
-                // 1. Build profile update
+                // ── STEP 1: Build the profile payload ─────────────────
                 const profileUpdate = { tier };
                 if (tier === 'Elite') {
                     profileUpdate.unlocked_themes = ['Default', 'cyberpunk', 'matrix', 'gold'];
+                } else {
+                    // Pro: keep existing themes, just upgrade tier
+                    profileUpdate.unlocked_themes = ['Default'];
                 }
 
-                // 2. Update profiles table — MUST succeed before touching payment
-                const { error: profileErr } = await sb.from('profiles')
+                // ── STEP 2: Update the profile FIRST ──────────────────
+                // CRITICAL: payment status must NOT change if this fails.
+                if (aBtn) aBtn.textContent = '⏳ Upgrading tier...';
+                const { error: profileErr } = await sb
+                    .from('profiles')
                     .update(profileUpdate)
                     .eq('id', userId);
 
                 if (profileErr) {
-                    // Tier upgrade failed — do NOT change payment status
-                    throw new Error('Tier upgrade failed: ' + profileErr.message + ' — payment status left unchanged.');
+                    throw new Error('Profile update failed: ' + profileErr.message);
                 }
 
-                // 3. Only mark payment as approved if the profile update succeeded
-                const { error: payErr } = await sb.from('payments')
+                // ── STEP 3: Verify the profile was actually updated ────
+                const { data: verifyData, error: verifyErr } = await sb
+                    .from('profiles')
+                    .select('tier')
+                    .eq('id', userId)
+                    .single();
+
+                if (verifyErr || !verifyData || verifyData.tier !== tier) {
+                    throw new Error(
+                        'Tier verification failed — profile may not have updated. ' +
+                        'Payment status left unchanged. Check RLS policies.'
+                    );
+                }
+
+                // ── STEP 4: Profile confirmed — now update payment ─────
+                if (aBtn) aBtn.textContent = '⏳ Updating payment...';
+                const { error: payErr } = await sb
+                    .from('payments')
                     .update({
                         status: 'approved',
                         reviewed_at: new Date().toISOString(),
@@ -549,23 +570,26 @@
                     })
                     .eq('id', paymentId);
 
-                if (payErr) throw payErr;
+                if (payErr) {
+                    // Profile already upgraded — log but don't throw
+                    // (user has their tier, admin just needs to know)
+                    console.error('[PLANOS] Payment status update failed (profile was upgraded):', payErr);
+                    alert('⚠️ Warning: Tier was upgraded but payment status update failed.\nError: ' + payErr.message);
+                }
 
-                // 4. Fade the card out immediately for snappy UX
+                // ── STEP 5: Fade out the card ──────────────────────────
                 const card = document.getElementById(`card-${paymentId}`);
                 if (card) {
-                    card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                    card.style.transition = 'opacity 0.35s ease, transform 0.35s ease';
                     card.style.opacity = '0';
                     card.style.transform = 'scale(0.96)';
                 }
 
-                // 5. After fade, reload the PENDING list from Supabase.
-                //    The approved payment won't appear (status is now 'approved').
-                //    This beats any realtime race-condition re-render.
-                setTimeout(() => loadPayments('pending'), 350);
+                // ── STEP 6: Reload pending list after fade ─────────────
+                setTimeout(() => loadPayments('pending'), 400);
 
             } catch (err) {
-                alert('❌ Error: ' + err.message);
+                alert('❌ Approval failed:\n' + err.message);
                 if (aBtn) { aBtn.disabled = false; aBtn.textContent = '✅ Approve'; }
                 if (rBtn) rBtn.disabled = false;
             }

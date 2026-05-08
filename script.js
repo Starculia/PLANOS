@@ -3181,9 +3181,10 @@ async function submitPaymentProof(e) {
         return;
     }
 
-    // Guard: proof of payment is now mandatory
+    // ✅ MANDATORY FILE CHECK: Stop execution if no file is selected
     if (!file) {
-        showAuthNotification('⚠️ Proof Required', 'Proof of payment is required to proceed.', 'error');
+        alert('Proof of payment is mandatory.');
+        showAuthNotification('⚠️ Proof Required', 'Proof of payment is mandatory.', 'error');
         return;
     }
 
@@ -3201,7 +3202,8 @@ async function submitPaymentProof(e) {
         if (uploadErr) {
             // Upload failed — stop here, do NOT notify admin via EmailJS
             console.error('[PLANOS] Receipt upload failed:', uploadErr.message);
-            showAuthNotification('❌ Upload Failed', 'Proof of payment is required to proceed. Please try again.', 'error');
+            alert('Proof of payment is mandatory.');
+            showAuthNotification('❌ Upload Failed', 'Proof of payment is mandatory. Please try again.', 'error');
             btn.disabled = false;
             btn.textContent = "✅ I've Paid — Submit Confirmation";
             return;
@@ -3302,6 +3304,7 @@ function subscribeToPaymentUpdates() {
 
     _paymentChannel = window.supabase
         .channel('payment-approvals')
+        // ── Listen for payment status changes ──────────────────────
         .on('postgres_changes', {
             event: 'UPDATE',
             schema: 'public',
@@ -3317,23 +3320,45 @@ function subscribeToPaymentUpdates() {
                     `You've been upgraded to the ${tier} plan. Welcome aboard!`,
                     'success'
                 );
-                // Grant all themes for Elite locally too
-                if (tier === 'Elite') {
-                    const inv = getLootInventory();
-                    inv.themes = LOOT_THEMES.map(t => t.id);
-                    saveLootInventory(inv);
-                }
+                // Reload tier from Supabase — this is the source of truth
                 loadUserTier();
 
             } else if (status === 'rejected') {
                 showAuthNotification(
                     '😔 Payment Not Verified',
-                    'We couldn\'t verify your payment. Please DM us at PlanosPlanMake@gmail.com and we\'ll sort it out.',
+                    "We couldn't verify your payment. Please DM us at PlanosPlanMaker@gmail.com and we'll sort it out.",
                     'error'
                 );
             }
         })
-        .subscribe();
+        // ── Also listen for profile tier changes directly ───────────
+        // This is the safety net: if the payment event is missed,
+        // the profile change will still trigger the upgrade.
+        .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${currentUser.id}`
+        }, (payload) => {
+            const newTier = payload.new?.tier;
+            const oldTier = payload.old?.tier;
+            console.log('[PLANOS] Profile update received — tier:', oldTier, '→', newTier);
+
+            // Only act if the tier actually changed
+            if (newTier && newTier !== oldTier) {
+                // Grant Elite themes locally right away (don't wait for loadUserTier)
+                if (newTier === 'Elite') {
+                    const inv = getLootInventory();
+                    inv.themes = LOOT_THEMES.map(t => t.id);
+                    saveLootInventory(inv);
+                }
+                // Re-fetch full tier data and refresh UI
+                loadUserTier();
+            }
+        })
+        .subscribe((status) => {
+            console.log('[PLANOS] Realtime subscription status:', status);
+        });
 }
 
 // ─── MUSIC PLAYER UPLOAD & LIBRARY ───────────────────────────
