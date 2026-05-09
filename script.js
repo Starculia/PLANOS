@@ -2008,6 +2008,10 @@ function updatePointsAndLevel() {
     // ── Number & title ──
     if (levelDisplay) levelDisplay.textContent = level;
 
+    // ── Mini icon display (shown when sidebar is minimized) ──
+    const miniLevelDisplay = document.getElementById('mini-level-display');
+    if (miniLevelDisplay) miniLevelDisplay.textContent = level;
+
     if (levelTitle) {
         if (level === 0 || level === 1) {
             levelTitle.textContent = 'Newbie';
@@ -2044,6 +2048,25 @@ function updatePointsAndLevel() {
             if (level >= r.threshold) chosenIcon = r.icon;
         }
         rankIcon.textContent = chosenIcon;
+    }
+
+    // ── Sync mini icon to current rank ──
+    const miniLvIcon = document.querySelector('.sidebar-level-mini .mini-lv-icon');
+    if (miniLvIcon) {
+        const rankIcons2 = [
+            { threshold: 0,   icon: '🌱' },
+            { threshold: 2,   icon: '⚔️' },
+            { threshold: 5,   icon: '🛡️' },
+            { threshold: 10,  icon: '🏹' },
+            { threshold: 25,  icon: '🔥' },
+            { threshold: 50,  icon: '💎' },
+            { threshold: 100, icon: '👑' },
+        ];
+        let chosen = rankIcons2[0].icon;
+        for (const r of rankIcons2) {
+            if (level >= r.threshold) chosen = r.icon;
+        }
+        miniLvIcon.textContent = chosen;
     }
 
     // ── Flat XP progress bar ──

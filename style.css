@@ -1210,8 +1210,65 @@ textarea {
     text-shadow: 0 0 6px rgba(139,92,246,0.7);
 }
 
-/* Minimized sidebar: hide whole level panel */
-.sidebar.minimized .sidebar-level { display: none; }
+/* Minimized sidebar: collapse level panel to a compact icon */
+.sidebar.minimized .sidebar-level {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 0;
+    border-top: 1px solid rgba(230,235,254,0.12);
+    background: linear-gradient(160deg,
+        rgba(20, 10, 50, 0.6) 0%,
+        rgba(10, 40, 80, 0.5) 100%);
+    overflow: hidden;
+}
+
+/* Hide everything except the mini icon when minimized */
+.sidebar.minimized .sidebar-level .level-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+}
+
+.sidebar.minimized .sidebar-level .level-ring-wrap,
+.sidebar.minimized .sidebar-level .level-rank-row,
+.sidebar.minimized .sidebar-level .xp-bar-wrap,
+.sidebar.minimized .sidebar-level .level-particles,
+.sidebar.minimized .sidebar-level #achievement-badges {
+    display: none !important;
+}
+
+/* Mini level icon — shown only when minimized */
+.sidebar-level-mini {
+    display: none; /* hidden by default (full sidebar) */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    cursor: default;
+}
+
+.sidebar.minimized .sidebar-level-mini {
+    display: flex;
+}
+
+.sidebar-level-mini .mini-lv-icon {
+    font-size: 1.3rem;
+    line-height: 1;
+    filter: drop-shadow(0 0 6px rgba(139,92,246,0.8));
+}
+
+.sidebar-level-mini .mini-lv-num {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.45rem;
+    color: rgba(167,139,250,0.9);
+    letter-spacing: 1px;
+    text-shadow: 0 0 6px rgba(139,92,246,0.7);
+    line-height: 1;
+}bar-level { display: none; }
 
 /* Responsive Sidebar */
 @media (max-width: 768px) {
