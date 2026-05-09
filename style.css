@@ -2532,6 +2532,7 @@ button:active {
     border: 2px solid rgba(230, 235, 254, 0.3);
     /* Smooth transition for all state changes including minimize */
     transition: all 0.3s ease;
+    overflow: hidden;
 }
 
 /* Planning Section */
@@ -2793,8 +2794,21 @@ button:active {
     display: none;
 }
 
+/* Also hide individual controls as a safety net */
+#audio-player-container.minimized .controls,
+#audio-player-container.minimized .playback-controls,
+#audio-player-container.minimized .track-selector-row,
+#audio-player-container.minimized select,
+#audio-player-container.minimized input[type="range"],
+#audio-player-container.minimized input[type="file"],
+#audio-player-container.minimized .upload-btn-mini,
+#audio-player-container.minimized .volume-control {
+    display: none !important;
+}
+
 #audio-player-container.minimized {
     max-width: 200px;
+    height: 60px;
     padding: 10px 14px;
     cursor: pointer;
     position: fixed !important;
@@ -3709,10 +3723,11 @@ audio {
         margin: 0;
     }
 
+    /* NEUTRALIZED — old rule that was squishing and shifting the level container */
     .level-container {
-        transform: scale(0.75) translateX(40px) translateY(-60px);
-        transform-origin: right center;
-        top: 55%;
+        transform: none;
+        transform-origin: unset;
+        top: auto;
     }
 
     .level-progress {
@@ -6733,46 +6748,68 @@ body.theme-gold .sidebar-inventory {
         width: 100% !important;
         z-index: auto !important;
         display: block !important;
-        padding: 0.75rem 0.6rem 1rem !important;
+        padding: 1.2rem 1rem 1.5rem !important;
         flex-shrink: 0 !important;
         background: linear-gradient(160deg,
             rgba(20, 10, 50, 0.85) 0%,
             rgba(10, 40, 80, 0.75) 100%) !important;
         border-top: 1px solid rgba(167, 139, 250, 0.25) !important;
+        box-sizing: border-box !important;
     }
 
-    /* Horizontal compact layout: ring left, XP bar right */
+    /* Vertical centered layout — mirrors the desktop sidebar exactly */
     .sidebar-level .level-container {
-        flex-direction: row !important;
-        justify-content: flex-start !important;
+        display: flex !important;
+        flex-direction: column !important;
         align-items: center !important;
-        gap: 0.75rem !important;
+        justify-content: center !important;
+        gap: 10px !important;
         flex-wrap: nowrap !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        transform: none !important;
+        transform-origin: unset !important;
+        top: auto !important;
+        position: relative !important;
     }
 
+    /* Level ring — same proportions as desktop */
     .sidebar-level .level-ring-wrap {
-        width: 52px !important;
-        height: 52px !important;
+        width: 72px !important;
+        height: 72px !important;
         flex-shrink: 0 !important;
-        animation: none !important; /* save battery on mobile */
+        animation: none !important;
+        margin: 0 auto !important;
     }
     .sidebar-level .level-ring-svg {
-        width: 52px !important;
-        height: 52px !important;
+        width: 72px !important;
+        height: 72px !important;
     }
     .sidebar-level .level-num {
-        font-size: 0.9rem !important;
+        font-size: 1.1rem !important;
     }
 
+    /* Badge row — centered */
+    .sidebar-level .level-rank-row {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin: 0 auto !important;
+    }
+
+    /* XP bar — centered, never overflows */
     .sidebar-level .xp-bar-wrap {
-        flex: 1 !important;
+        width: 80% !important;
+        max-width: 200px !important;
         min-width: 0 !important;
+        align-self: center !important;
+        box-sizing: border-box !important;
+        margin: 0 auto !important;
     }
 
-    /* Hide decorative elements to save space */
-    .sidebar-level .level-rank-row  { display: none !important; }
+    /* Hide decorative particles to save space */
     .sidebar-level #achievement-badges { display: none !important; }
-    .sidebar-level .level-particles { display: none !important; }
+    .sidebar-level .level-particles    { display: none !important; }
 
     /* Sidebar flex structure: nav scrolls, level stays pinned at bottom */
     .sidebar {

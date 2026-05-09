@@ -428,9 +428,13 @@ function prevTrack() {
 
 function toggleAudioPlayer() {
     const container = document.getElementById('audio-player-container');
+    if (!container) return;
+
     if (container.classList.contains('minimized')) {
+        // Rule A: restore from minimized
         container.classList.remove('minimized');
     } else {
+        // Rule B: minimize (header click triggers this via onclick="toggleAudioPlayer()")
         container.classList.add('minimized');
     }
 }

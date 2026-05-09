@@ -34,29 +34,16 @@ window.toggleSidebar = toggleSidebar;
 
 // --- Music Player Toggle (minimize / maximize) ---
 /**
- * Toggles the music player between its full and minimized states.
- * Uses display:none on the content when minimized to fully prevent
- * any layout bleed from hidden controls (progress bar, buttons, etc.).
+ * Called ONLY by the header's onclick="toggleAudioPlayer()".
+ * Toggles the minimized class. The container-level click listener
+ * in setupMusicPlayerRecovery handles restoring from the minimized pill.
  */
 function toggleAudioPlayer() {
     const container = document.getElementById('audio-player-container');
     if (!container) return;
 
-    const content = container.querySelector('.audio-player-content');
     const isMinimized = container.classList.toggle('minimized');
 
-    // display:none is the only reliable way to prevent hidden controls
-    // from affecting layout — opacity/max-height alone can still cause issues
-    if (content) {
-        if (isMinimized) {
-            // Small delay so the CSS transition on the container fires first
-            setTimeout(() => { content.style.display = 'none'; }, 10);
-        } else {
-            content.style.display = '';
-        }
-    }
-
-    // Update aria-label for screen readers
     const header = container.querySelector('.audio-player-header');
     if (header) {
         header.setAttribute(
@@ -2168,48 +2155,54 @@ function selectTrack(index) {
     }
 }
 
-function toggleAudioPlayer() {
+// ── Music Player: two-way click toggle + off-screen recovery ──
+// NOTE: This script runs at the bottom of <body>, so the DOM is already
+// ready — no DOMContentLoaded wrapper needed.
+(function setupMusicPlayerRecovery() {
     const container = document.getElementById('audio-player-container');
     if (!container) return;
 
-    if (container.classList.contains('minimized')) {
-        container.classList.remove('minimized');
-    } else {
-        container.classList.add('minimized');
-    }
-}
+    // The header already calls toggleAudioPlayer() via onclick.
+    // This listener handles ONLY the minimized-pill restore (Rule A)
+    // and body-click minimize (Rule B) — it must NOT double-fire on header clicks.
+    container.addEventListener('click', function (e) {
+        // Always ignore clicks that came from the header — it has its own onclick
+        if (e.target.closest('.audio-player-header')) return;
 
-// ── Music Player Recovery: ensures the minimized pill never drifts off-screen
-(function setupMusicPlayerRecovery() {
-    document.addEventListener('DOMContentLoaded', function () {
-        const container = document.getElementById('audio-player-container');
-        if (!container) return;
-
-        // Any click on the minimized pill restores the player
-        container.addEventListener('click', function (e) {
-            if (container.classList.contains('minimized')) {
-                container.classList.remove('minimized');
-                e.stopPropagation();
-            }
-        });
-
-        // Safety net: if player somehow ends up off-screen, reset its position
-        function ensurePlayerVisible() {
-            if (!container.classList.contains('minimized')) return;
-            const rect = container.getBoundingClientRect();
-            const isMobile = window.innerWidth <= 768;
-            if (isMobile && (rect.bottom < 0 || rect.top > window.innerHeight)) {
-                // Reset to safe position above bottom nav
-                container.style.bottom = '78px';
-                container.style.right = '0.75rem';
-                container.style.left = 'auto';
-                container.style.top = 'auto';
+        if (container.classList.contains('minimized')) {
+            // Rule A: clicking the minimized pill (anywhere except header) restores it
+            container.classList.remove('minimized');
+            const header = container.querySelector('.audio-player-header');
+            if (header) header.setAttribute('aria-label', 'Minimize music player');
+        } else {
+            // Rule B: clicking the container background minimizes it,
+            // but NOT if the user clicked an interactive control
+            const isControl = e.target.closest(
+                'button, select, input, progress, label, .progress-bar'
+            );
+            if (!isControl) {
+                container.classList.add('minimized');
+                const header = container.querySelector('.audio-player-header');
+                if (header) header.setAttribute('aria-label', 'Expand music player');
             }
         }
-
-        window.addEventListener('resize', ensurePlayerVisible, { passive: true });
-        document.addEventListener('scroll', ensurePlayerVisible, { passive: true });
     });
+
+    // Safety net: if player somehow ends up off-screen, reset its position
+    function ensurePlayerVisible() {
+        if (!container.classList.contains('minimized')) return;
+        const rect = container.getBoundingClientRect();
+        const isMobile = window.innerWidth <= 768;
+        if (isMobile && (rect.bottom < 0 || rect.top > window.innerHeight)) {
+            container.style.bottom = '78px';
+            container.style.right = '0.75rem';
+            container.style.left = 'auto';
+            container.style.top = 'auto';
+        }
+    }
+
+    window.addEventListener('resize', ensurePlayerVisible, { passive: true });
+    document.addEventListener('scroll', ensurePlayerVisible, { passive: true });
 }());
 document.addEventListener('DOMContentLoaded', function () {
     console.log('[PLANOS] DOMContentLoaded — init starting');
