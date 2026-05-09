@@ -370,6 +370,15 @@ function initializeAuth() {
                     localStorage.removeItem('tasks');
                     localStorage.removeItem('points');
                     localStorage.removeItem('achievements');
+                    // ── Clear theme/inventory so logged-out users can't keep
+                    //    themes they earned while logged in ──
+                    localStorage.removeItem('loot_inventory');
+                    localStorage.removeItem('planos_active_theme');
+                    userTier = 'Free';
+                    userUnlockedThemes = ['Default'];
+                    // Strip any active theme class from the body
+                    LOOT_THEMES.forEach(t => document.body.classList.remove(t.cssClass));
+                    renderInventory();
                     clearTaskDisplay();
                     fetchUserTracks();
                     showAuthNotification('👋 Logged Out', 'You have been successfully logged out.', 'info');
@@ -2872,13 +2881,41 @@ function applyTheme(themeId) {
 
 /** Called in equipTheme chip click — saves & applies the chosen theme. */
 function equipTheme(themeId) {
+    // ── Access gate ──────────────────────────────────────────────
+    if (themeId && themeId !== 'default') {
+        // Must be logged in
+        if (!currentUser) {
+            showAuthNotification(
+                '🔒 Login Required',
+                'Log in first, then complete timed tasks for a lootbox drop chance!',
+                'info'
+            );
+            return;
+        }
+
+        const isElite   = userTier === 'Elite';
+        const inventory = getLootInventory();
+        const isOwned   = inventory.themes.includes(themeId);
+
+        if (!isElite && !isOwned) {
+            const widget = document.getElementById('lootbox-widget');
+            if (widget && widget.classList.contains('lootbox-visible')) {
+                widget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                showAuthNotification(
+                    '🔒 Theme Locked',
+                    'This theme is unlocked via Lootbox drops or the Elite tier. Complete timed tasks for a drop chance!',
+                    'info'
+                );
+            }
+            return; // hard stop — do NOT apply the theme
+        }
+    }
+    // ── Allowed — apply ──────────────────────────────────────────
     const inventory = getLootInventory();
     inventory.activeTheme = themeId;
     saveLootInventory(inventory);
-
-    // Persist theme independently so it survives auth state changes
     localStorage.setItem('planos_active_theme', themeId);
-
     applyTheme(themeId);
     renderInventory();
     syncInventoryToSupabase(inventory);
@@ -2904,33 +2941,74 @@ function renderInventory() {
     const container = document.getElementById('inventory-themes');
     if (!container) return;
 
-    const inventory = getLootInventory();
+    const inventory    = getLootInventory();
+    const isElite      = userTier === 'Elite';
+    // If no user is logged in, treat inventory as empty — nothing is owned
+    const isLoggedIn   = !!currentUser;
     container.innerHTML = '';
 
-    // ── Default chip (always shown) ──
+    // ── Default chip (always available) ──
     const isDefault = !inventory.activeTheme || inventory.activeTheme === 'default';
     const defaultChip = document.createElement('div');
     defaultChip.className = 'inventory-chip' + (isDefault ? ' active' : '');
     defaultChip.innerHTML = '<span class="chip-icon">🔵</span><span class="chip-name">Default</span>';
     defaultChip.onclick = () => equipTheme('default');
+    defaultChip.title = 'Default theme';
     container.appendChild(defaultChip);
 
-    // ── All themes — unlocked OR locked ──
+    // ── All themes — owned, elite-unlocked, or locked ──
     LOOT_THEMES.forEach(themeDef => {
-        const isOwned = inventory.themes.includes(themeDef.id);
+        // A theme is accessible only if the user is logged in AND
+        // (is Elite OR has it in their local inventory)
+        const isOwned  = isLoggedIn && (isElite || inventory.themes.includes(themeDef.id));
         const isActive = inventory.activeTheme === themeDef.id;
 
         const chip = document.createElement('div');
 
         if (isOwned) {
+            // ── Unlocked chip ──
             chip.className = 'inventory-chip' + (isActive ? ' active' : '');
-            chip.innerHTML = `<span class="chip-icon">${themeDef.icon}</span><span class="chip-name">${themeDef.name}</span><span class="chip-rarity">${themeDef.rarity}</span>`;
+            chip.innerHTML = `
+                <span class="chip-icon">${themeDef.icon}</span>
+                <span class="chip-name">${themeDef.name}</span>
+                <span class="chip-rarity">${themeDef.rarity}</span>
+                ${isElite && !inventory.themes.includes(themeDef.id)
+                    ? '<span class="chip-elite-badge">Elite</span>'
+                    : ''}`;
             chip.onclick = () => equipTheme(themeDef.id);
             chip.title = `Equip ${themeDef.name} theme`;
         } else {
+            // ── Locked chip ──
             chip.className = 'inventory-chip locked';
-            chip.innerHTML = `<span class="chip-icon">🔒</span><span class="chip-name">${themeDef.name}</span><span class="chip-rarity locked-rarity">${themeDef.rarity}</span>`;
-            chip.title = `Locked — complete timed tasks for a 20% drop chance!`;
+            const lockReason = !isLoggedIn
+                ? '<span class="chip-icon">🔒</span>'
+                : '<span class="chip-icon">🔒</span>';
+            chip.innerHTML = `
+                <span class="chip-name">${themeDef.name}</span>
+                <span class="chip-loot-label">${lockReason}</span>`;
+            chip.title = !isLoggedIn
+                ? 'Login first, then complete timed tasks for a drop chance!'
+                : 'Locked — complete timed tasks for a drop chance, or upgrade to Elite!';
+            chip.onclick = () => {
+                if (!isLoggedIn) {
+                    showAuthNotification(
+                        '🔒 Login Required',
+                        'Log in first, then complete timed tasks for a lootbox drop chance!',
+                        'info'
+                    );
+                    return;
+                }
+                const widget = document.getElementById('lootbox-widget');
+                if (widget && widget.classList.contains('lootbox-visible')) {
+                    widget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    showAuthNotification(
+                        '🔒 Theme Locked',
+                        `"${themeDef.name}" is still unlocked! Get it via Lootbox drops or buy the Elite tier. Complete timed tasks for a ${userTier === 'Pro' ? '35%' : '20%'} lootbox drop chance!`,
+                        'info'
+                    );
+                }
+            };
         }
 
         container.appendChild(chip);
@@ -2980,18 +3058,39 @@ function syncInventoryToSupabase(inventory) {
  * survives logout / login cycles regardless of loot_inventory state.
  */
 function restoreSavedTheme() {
-    // Primary source: dedicated theme key (most reliable across login cycles)
-    const savedThemeId = localStorage.getItem('planos_active_theme');
-
-    // Fallback: read from loot_inventory for backwards compatibility
-    const inventory = getLootInventory();
-    const themeId = savedThemeId || inventory.activeTheme;
-
+    // Always strip all theme classes first
     LOOT_THEMES.forEach(t => document.body.classList.remove(t.cssClass));
 
+    // If no user is logged in, never apply a non-default theme.
+    // Auth resolves asynchronously — if currentUser is null here we're either
+    // logged out or still waiting. Either way, default is the safe choice.
+    // loadUserTier() will call renderInventory() + applyTheme() once auth resolves.
+    if (!currentUser) {
+        localStorage.removeItem('planos_active_theme');
+        const inventory = getLootInventory();
+        inventory.activeTheme = null;
+        saveLootInventory(inventory);
+        return;
+    }
+
+    const savedThemeId = localStorage.getItem('planos_active_theme');
+    const inventory    = getLootInventory();
+    const themeId      = savedThemeId || inventory.activeTheme;
+
     if (themeId && themeId !== 'default') {
-        const theme = LOOT_THEMES.find(t => t.id === themeId);
-        if (theme) document.body.classList.add(theme.cssClass);
+        const theme   = LOOT_THEMES.find(t => t.id === themeId);
+        const isElite = userTier === 'Elite';
+        const isOwned = inventory.themes.includes(themeId);
+
+        if (theme && (isElite || isOwned)) {
+            document.body.classList.add(theme.cssClass);
+        } else {
+            // Theme no longer owned — reset silently
+            console.warn(`[PLANOS] Saved theme "${themeId}" not in inventory — resetting to default.`);
+            localStorage.removeItem('planos_active_theme');
+            inventory.activeTheme = null;
+            saveLootInventory(inventory);
+        }
     }
 }
 
@@ -3049,6 +3148,25 @@ function applyPremiumGating() {
     // Task Tracker lock
     const ttLock = document.getElementById('task-tracker-lock');
     if (ttLock) ttLock.style.display = isFree ? 'flex' : 'none';
+
+    // Re-render inventory so lock state reflects current tier
+    renderInventory();
+
+    // If the active theme is no longer accessible (e.g. tier downgraded),
+    // strip it and reset to default
+    const inventory = getLootInventory();
+    const activeId  = inventory.activeTheme;
+    if (activeId && activeId !== 'default') {
+        const isElite = userTier === 'Elite';
+        const isOwned = inventory.themes.includes(activeId);
+        if (!isElite && !isOwned) {
+            console.warn(`[PLANOS] Active theme "${activeId}" no longer accessible — resetting.`);
+            inventory.activeTheme = null;
+            saveLootInventory(inventory);
+            localStorage.removeItem('planos_active_theme');
+            applyTheme('default');
+        }
+    }
 }
 
 // ─── Global Rankings ─────────────────────────────────────────

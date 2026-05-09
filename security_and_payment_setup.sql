@@ -240,3 +240,78 @@ END $$;
 -- Check realtime is enabled:
 -- SELECT tablename FROM pg_publication_tables
 -- WHERE pubname = 'supabase_realtime';
+
+-- ────────────────────────────────────────────────────────────
+-- 11. THEME ACCESS ENFORCEMENT (backend RLS)
+--     Prevents users from writing arbitrary theme IDs to their
+--     own profile via the Supabase API / browser console.
+--     Rules:
+--       • Users can only set unlocked_themes to IDs they already
+--         own OR if their tier = 'Elite'.
+--       • Only the admin can change the `tier` column.
+-- ────────────────────────────────────────────────────────────
+
+-- Helper function: returns true if every element of the
+-- proposed new_themes array is either already in the user's
+-- current unlocked_themes OR the user is Elite.
+CREATE OR REPLACE FUNCTION public.user_can_set_themes(
+    user_id   UUID,
+    new_themes JSONB
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    current_tier    TEXT;
+    current_themes  JSONB;
+    theme_id        TEXT;
+BEGIN
+    SELECT tier, unlocked_themes
+      INTO current_tier, current_themes
+      FROM public.profiles
+     WHERE id = user_id;
+
+    -- Elite users may set any theme
+    IF current_tier = 'Elite' THEN
+        RETURN TRUE;
+    END IF;
+
+    -- For Free / Pro: every requested theme must already be owned
+    FOR theme_id IN SELECT jsonb_array_elements_text(new_themes)
+    LOOP
+        IF theme_id = 'Default' THEN
+            CONTINUE; -- Default is always allowed
+        END IF;
+        IF NOT (current_themes ? theme_id) THEN
+            RETURN FALSE; -- theme not in inventory
+        END IF;
+    END LOOP;
+
+    RETURN TRUE;
+END;
+$$;
+
+-- Drop the existing user UPDATE policy and replace with a
+-- theme-aware version that blocks unauthorized theme writes.
+DROP POLICY IF EXISTS "Admin god mode: UPDATE profiles" ON public.profiles;
+
+CREATE POLICY "Admin god mode: UPDATE profiles" ON public.profiles
+  FOR UPDATE
+  USING (
+    -- Admin can update anything
+    (auth.jwt() ->> 'email') = 'PlanosPlanMaker@gmail.com'
+    OR auth.uid() = id
+  )
+  WITH CHECK (
+    -- Admin bypasses all checks
+    (auth.jwt() ->> 'email') = 'PlanosPlanMaker@gmail.com'
+    OR (
+        -- Regular users: cannot change their own tier column
+        -- (tier must stay the same as what's already stored)
+        (SELECT tier FROM public.profiles WHERE id = auth.uid()) =
+            COALESCE(tier, (SELECT tier FROM public.profiles WHERE id = auth.uid()))
+        -- And can only set themes they actually own
+        AND public.user_can_set_themes(auth.uid(), COALESCE(unlocked_themes, '["Default"]'::jsonb))
+    )
+  );

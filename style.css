@@ -5198,18 +5198,54 @@ body.shake-active {
     color: #80ffb0;
 }
 
-/* Locked theme chip */
+/* Locked theme chip — clickable so user can see the notification */
 .inventory-chip.locked {
-    opacity: 0.45;
-    cursor: not-allowed;
-    pointer-events: none;
-    filter: grayscale(0.6);
+    opacity: 0.55;
+    cursor: pointer;          /* clickable — shows the "how to unlock" notification */
+    filter: grayscale(0.5);
     border-style: dashed;
-    border-color: rgba(230, 235, 254, 0.1);
+    border-color: rgba(230, 235, 254, 0.15);
+}
+
+.inventory-chip.locked:hover {
+    opacity: 0.8;
+    border-color: rgba(167, 139, 250, 0.4);
+    background: rgba(167, 139, 250, 0.06);
+    transform: translateX(3px);
+    filter: grayscale(0.2);
 }
 
 .inventory-chip.locked .chip-icon {
     filter: grayscale(1);
+}
+
+/* "Lootbox / Elite" label on locked chips */
+.chip-loot-label {
+    margin-left: auto;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.28rem;
+    color: rgba(167, 139, 250, 0.7);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    background: rgba(139, 92, 246, 0.12);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+    border-radius: 4px;
+    padding: 2px 4px;
+}
+
+/* "Elite" badge on chips unlocked by Elite tier */
+.chip-elite-badge {
+    margin-left: auto;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.28rem;
+    color: #ffc832;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    background: rgba(255, 200, 50, 0.12);
+    border: 1px solid rgba(255, 200, 50, 0.3);
+    border-radius: 4px;
+    padding: 2px 4px;
 }
 
 /* Rarity label */
@@ -5220,10 +5256,6 @@ body.shake-active {
     color: rgba(230, 235, 254, 0.4);
     letter-spacing: 0.04em;
     text-transform: uppercase;
-}
-
-.locked-rarity {
-    color: rgba(230, 235, 254, 0.25);
 }
 
 /* Epic / Rare / Legendary color accents on rarity when owned */
