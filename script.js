@@ -354,11 +354,18 @@ function initializeAuth() {
                 updateAuthUI(currentUser);
 
                 if (event === 'SIGNED_IN' && currentUser) {
-                    // Load user-specific data from Supabase
+                    // Wipe any stale data from a previous session before
+                    // loading the newly logged-in user's data
+                    localStorage.removeItem('tasks');
+                    localStorage.removeItem('points');
+                    localStorage.removeItem('achievements');
+                    localStorage.removeItem('plans');
+                    // Load fresh user-specific data from Supabase
                     loadUserDataFromSupabase();
                     loadUserTier();
                     subscribeToPaymentUpdates();
                     fetchUserTracks();
+                    displayPlans(); // re-render now that currentUser is set
                     showAuthNotification('🎉 Welcome Back!', 'You are now logged in as ' + (currentUser.user_metadata?.username || 'User'), 'success');
                 } else if (event === 'SIGNED_OUT') {
                     // Tear down realtime subscription
@@ -366,12 +373,12 @@ function initializeAuth() {
                         window.supabase.removeChannel(_paymentChannel);
                         _paymentChannel = null;
                     }
-                    // Clear local data and show empty state
+                    // Clear ALL user-specific local data so the next visitor
+                    // (or the same user after logout) sees a clean slate
                     localStorage.removeItem('tasks');
                     localStorage.removeItem('points');
                     localStorage.removeItem('achievements');
-                    // ── Clear theme/inventory so logged-out users can't keep
-                    //    themes they earned while logged in ──
+                    localStorage.removeItem('plans');           // ← fix: clear plans
                     localStorage.removeItem('loot_inventory');
                     localStorage.removeItem('planos_active_theme');
                     userTier = 'Free';
@@ -380,6 +387,7 @@ function initializeAuth() {
                     LOOT_THEMES.forEach(t => document.body.classList.remove(t.cssClass));
                     renderInventory();
                     clearTaskDisplay();
+                    displayPlans();                             // ← fix: re-render plans as empty
                     fetchUserTracks();
                     showAuthNotification('👋 Logged Out', 'You have been successfully logged out.', 'info');
                 }
@@ -2441,6 +2449,12 @@ function validatePlanDateTime() {
 }
 
 function createPlan() {
+    // Gate: must be logged in to create plans
+    if (!currentUser) {
+        showAuthNotification('🔒 Login Required', 'Please log in to create plans.', 'info');
+        return;
+    }
+
     const titleEl = document.getElementById('plan-title');
     const descEl = document.getElementById('plan-description');
     const dateEl = document.getElementById('plan-date');
@@ -2510,6 +2524,13 @@ function displayPlans() {
     const plansGrid = document.getElementById('plans-grid');
     if (!plansGrid) return;
 
+    // Gate: show login prompt for unauthenticated users
+    if (!currentUser) {
+        plansGrid.innerHTML = '<div class="empty-state">🔒 Please log in to see your plans.</div>';
+        updatePlanNotificationBadge([]);
+        return;
+    }
+
     const allPlans = JSON.parse(localStorage.getItem('plans')) || [];
     plansGrid.innerHTML = '';
 
@@ -2574,6 +2595,7 @@ function createPlanCard(plan) {
 }
 
 function deletePlan(planId) {
+    if (!currentUser) return; // silently block unauthenticated deletes
     if (confirm('Are you sure you want to delete this plan?')) {
         const allPlans = JSON.parse(localStorage.getItem('plans')) || [];
         const filtered = allPlans.filter(p => p.id !== planId);
