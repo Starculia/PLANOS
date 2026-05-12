@@ -354,11 +354,18 @@ function initializeAuth() {
                 updateAuthUI(currentUser);
 
                 if (event === 'SIGNED_IN' && currentUser) {
-                    // Load user-specific data from Supabase
+                    // Wipe any stale data from a previous session before
+                    // loading the newly logged-in user's data
+                    localStorage.removeItem('tasks');
+                    localStorage.removeItem('points');
+                    localStorage.removeItem('achievements');
+                    localStorage.removeItem('plans');
+                    // Load fresh user-specific data from Supabase
                     loadUserDataFromSupabase();
                     loadUserTier();
                     subscribeToPaymentUpdates();
                     fetchUserTracks();
+                    displayPlans(); // re-render now that currentUser is set
                     showAuthNotification('🎉 Welcome Back!', 'You are now logged in as ' + (currentUser.user_metadata?.username || 'User'), 'success');
                 } else if (event === 'SIGNED_OUT') {
                     // Tear down realtime subscription
@@ -366,12 +373,12 @@ function initializeAuth() {
                         window.supabase.removeChannel(_paymentChannel);
                         _paymentChannel = null;
                     }
-                    // Clear local data and show empty state
+                    // Clear ALL user-specific local data so the next visitor
+                    // (or the same user after logout) sees a clean slate
                     localStorage.removeItem('tasks');
                     localStorage.removeItem('points');
                     localStorage.removeItem('achievements');
-                    // ── Clear theme/inventory so logged-out users can't keep
-                    //    themes they earned while logged in ──
+                    localStorage.removeItem('plans');           // ← fix: clear plans
                     localStorage.removeItem('loot_inventory');
                     localStorage.removeItem('planos_active_theme');
                     userTier = 'Free';
@@ -380,6 +387,7 @@ function initializeAuth() {
                     LOOT_THEMES.forEach(t => document.body.classList.remove(t.cssClass));
                     renderInventory();
                     clearTaskDisplay();
+                    displayPlans();                             // ← fix: re-render plans as empty
                     fetchUserTracks();
                     showAuthNotification('👋 Logged Out', 'You have been successfully logged out.', 'info');
                 }
@@ -731,7 +739,7 @@ function tickTimers() {
 
                     // Show enriched completion notification
                     const pointLine = earnedPoints > 0
-                        ? `+${earnedPoints} pts (${tierInfo.tier} Tier ${tierInfo.emoji} ${tierInfo.label})`
+                        ? `+${earnedPoints} pts (${task.duration_minutes} min × 10)`
                         : 'No points (no timer was set)';
                     showTimerCompleteNotification(task.title, pointLine);
 
@@ -1080,14 +1088,13 @@ function getTierInfo(durationMinutes) {
 }
 
 /**
- * Calculates points for a completed task.
- * Points = floor(duration_minutes × multiplier)
+ * Calculates points for an auto-completed task (timer reached zero).
+ * Formula: duration_minutes × 10 points/minute
  * Returns 0 for tasks with no duration (anti-spam: 0-min tasks earn nothing).
  */
 function calculateTierPoints(durationMinutes) {
     if (!durationMinutes || durationMinutes <= 0) return 0;
-    const { multiplier } = getTierInfo(durationMinutes);
-    return Math.floor(durationMinutes * multiplier);
+    return durationMinutes * 10;
 }
 
 // --- Leaderboard System ---
@@ -1425,6 +1432,20 @@ async function markAsFinished(taskId) {
 
     if (taskIndex !== -1) {
         const task = tasks[taskIndex];
+        
+        // ── ANTIGRAVITY: Calculate time-based points ──
+        const startTime = new Date(task.created_at).getTime();
+        const currentTime = Date.now();
+        const elapsedMinutes = Math.floor((currentTime - startTime) / 60000);
+        
+        let earnedPoints = 0;
+        
+        // Linear scaling: 10 points per minute (minimum 1 minute)
+        if (elapsedMinutes >= 1) {
+            earnedPoints = elapsedMinutes * 10;
+        }
+        
+        // Update task status
         task.status = 'finished';
         task.end_time = null;
         localStorage.setItem('tasks', JSON.stringify(tasks));
@@ -1432,9 +1453,9 @@ async function markAsFinished(taskId) {
         // ── Visual Juice: shake body + glow the task card ──
         triggerFinishJuice(taskId);
 
-        // ── Award 50 points for completion ──
+        // ── Award calculated points ──
         const oldPoints = parseInt(localStorage.getItem('points')) || 0;
-        const newPoints = oldPoints + 50;
+        const newPoints = oldPoints + earnedPoints;
         localStorage.setItem('points', newPoints);
 
         // ── Check for level-up with the NEW formula (100 * level) ──
@@ -1446,23 +1467,40 @@ async function markAsFinished(taskId) {
         // ── Update UI points display & sync to Supabase ──
         updatePointsAndLevel();
 
-        // ── Update task in Supabase if logged in (fire-and-forget — localStorage already updated) ──
+        // ── Update task in Supabase if logged in ──
         if (currentUser && window.supabase) {
-            window.supabase
+            // Update task status
+            const { error: taskError } = await window.supabase
                 .from('tasks')
                 .update({ status: 'finished', end_time: null })
                 .eq('id', taskId)
-                .eq('user_id', currentUser.id)
-                .then(({ error }) => {
-                    if (error) console.error('[PLANOS] Error updating task in Supabase:', error);
-                });
+                .eq('user_id', currentUser.id);
+            
+            if (taskError) {
+                console.error('[PLANOS] Error updating task in Supabase:', taskError);
+            }
 
             // Sync new points to user_progress table
-            const newLevel = Math.floor(newPoints / 100);
+            const newLevel = getLevelFromPoints(newPoints);
             syncProgressToSupabase(newPoints, newLevel);
         }
 
-        showEarlyFinishNotification(task.title);
+        // ── Show toast notification with earned points ──
+        if (earnedPoints > 0) {
+            const minutesText = elapsedMinutes === 1 ? '1 minute' : `${elapsedMinutes} minutes`;
+            showAuthNotification(
+                '🎉 Task Completed!',
+                `+${earnedPoints} Points earned for ${minutesText} of work!`,
+                'success'
+            );
+        } else {
+            showAuthNotification(
+                '⚡ Task Completed!',
+                'Complete tasks that take at least 1 minute to earn points!',
+                'info'
+            );
+        }
+
         playNotificationSound('complete');
         await updateTaskDisplay();
         checkNextPendingTask();
@@ -2441,6 +2479,12 @@ function validatePlanDateTime() {
 }
 
 function createPlan() {
+    // Gate: must be logged in to create plans
+    if (!currentUser) {
+        showAuthNotification('🔒 Login Required', 'Please log in to create plans.', 'info');
+        return;
+    }
+
     const titleEl = document.getElementById('plan-title');
     const descEl = document.getElementById('plan-description');
     const dateEl = document.getElementById('plan-date');
@@ -2510,6 +2554,13 @@ function displayPlans() {
     const plansGrid = document.getElementById('plans-grid');
     if (!plansGrid) return;
 
+    // Gate: show login prompt for unauthenticated users
+    if (!currentUser) {
+        plansGrid.innerHTML = '<div class="empty-state">🔒 Please log in to see your plans.</div>';
+        updatePlanNotificationBadge([]);
+        return;
+    }
+
     const allPlans = JSON.parse(localStorage.getItem('plans')) || [];
     plansGrid.innerHTML = '';
 
@@ -2574,6 +2625,7 @@ function createPlanCard(plan) {
 }
 
 function deletePlan(planId) {
+    if (!currentUser) return; // silently block unauthenticated deletes
     if (confirm('Are you sure you want to delete this plan?')) {
         const allPlans = JSON.parse(localStorage.getItem('plans')) || [];
         const filtered = allPlans.filter(p => p.id !== planId);
